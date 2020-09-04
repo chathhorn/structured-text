@@ -1,18 +1,16 @@
 name:                structured-text
 version:             0.1.0.0
-github:              "githubuser/structured-text"
-license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2020 Author name here"
+git:                 "https://code.ornl.gov/defcon-scada/structured-text"
+# license:             BSD3
+author:              "Chris Hathhorn et al."
+maintainer:          "hathhorncr@ornl.gov"
+copyright:           "2020 Oak Ridge National Laboratory"
+synopsis:            Tools for the IEC 61131-3 structured text (ST) language. See: https://en.wikipedia.org/wiki/IEC_61131-3.
+category:            Development
 
 extra-source-files:
 - README.md
 - ChangeLog.md
-
-# Metadata used when publishing your package
-# synopsis:            Short description of your package
-# category:            Web
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
@@ -21,6 +19,8 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
+- text >= 1.2.4 && < 1.2.5
+- prettyprinter >= 1.7 && < 1.8
 
 library:
   source-dirs: src
