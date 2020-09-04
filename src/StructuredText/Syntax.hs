@@ -4,10 +4,10 @@ module StructuredText.Syntax
       ) where
 
 import Data.Text (Text)
-import Text.PrettyPrint ((<+>), Pretty (..))
+import Prettyprinter ((<+>), Pretty (..))
 
 data STxt = FunBlock Text
 
 instance Pretty STxt where
       pretty = \ case
-            FunBlock f -> "funblock" <+> f
+            FunBlock f -> pretty ("funblock" :: Text) <+> pretty f

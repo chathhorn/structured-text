@@ -5,17 +5,13 @@ git:                 "https://code.ornl.gov/defcon-scada/structured-text"
 author:              "Chris Hathhorn et al."
 maintainer:          "hathhorncr@ornl.gov"
 copyright:           "2020 Oak Ridge National Laboratory"
-synopsis:            Tools for the IEC 61131-3 structured text (ST) language. See: https://en.wikipedia.org/wiki/IEC_61131-3.
+synopsis:            "Tools for the IEC 61131-3 structured text (ST) language. See: https://en.wikipedia.org/wiki/IEC_61131-3."
 category:            Development
+description:         Please see the README.
 
 extra-source-files:
 - README.md
 - ChangeLog.md
-
-# To avoid duplicated efforts in documentation and dealing with the
-# complications of embedding Haddock markup inside cabal files, it is
-# common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/structured-text#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -24,6 +20,8 @@ dependencies:
 
 library:
   source-dirs: src
+  dependencies:
+  - attoparsec >= 0.13.2 && < 0.13.3
 
 executables:
   structured-text-exe:
