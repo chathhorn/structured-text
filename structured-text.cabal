@@ -22,15 +22,16 @@ source-repository head
 library
   exposed-modules:
       StructuredText.Parser
+    , StructuredText.Syntax
   other-modules:
       Paths_structured_text
   hs-source-dirs:
       src
   build-depends:
-      base >=4.7 && <5
-    , attoparsec >=0.13.2 && <0.13.3
-    , text >=1.2.4 && <1.2.5
-    , pretty >=1.1.3 && <1.1.4
+      base >= 4.7 && < 5
+    , attoparsec >= 0.13.2 && < 0.13.3
+    , text >= 1.2.4 && < 1.2.5
+    , prettyprinter >= 1.7 && < 1.8
   default-language: Haskell2010
 
 executable structured-text-parser
@@ -41,8 +42,10 @@ executable structured-text-parser
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      base >= 4.7 && < 5
     , structured-text
+    , text >= 1.2.4 && < 1.2.5
+    , prettyprinter >= 1.7 && < 1.8
   default-language: Haskell2010
 
 test-suite structured-text-test
@@ -54,6 +57,6 @@ test-suite structured-text-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      base >= 4.7 && < 5
     , structured-text
   default-language: Haskell2010
