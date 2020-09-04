@@ -12,6 +12,8 @@ description:         Please see the README.
 extra-source-files:
 - README.md
 - ChangeLog.md
+data-files:
+- samples/*.st
 
 dependencies:
 - base >= 4.7 && < 5
