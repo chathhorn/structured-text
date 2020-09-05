@@ -7,6 +7,7 @@ import Data.Text (Text)
 import Prettyprinter ((<+>), Pretty (..))
 
 data STxt = FunBlock Text
+      deriving Show
 
 instance Pretty STxt where
       pretty = \ case
