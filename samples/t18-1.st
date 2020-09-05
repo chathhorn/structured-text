@@ -1,0 +1,5 @@
+PROGRAM Test
+	VAR AT %QX5.1 : BOOL :=1;
+          AT %MW6 : INT := 8 ;
+	END_VAR
+END_PROGRAM

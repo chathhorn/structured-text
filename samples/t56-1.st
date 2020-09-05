@@ -1,0 +1,14 @@
+FUNCTION Test : INT
+	VAR_INPUT
+		B : INT;
+	END_VAR
+	VAR_OUTPUT
+		A, CV : INT;
+		C : REAL;
+	END_OUTPUT
+
+	A := B;
+	CV := CV+1;
+	C := SIN(X);
+
+END_FUNCTION

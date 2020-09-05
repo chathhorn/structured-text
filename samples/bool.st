@@ -1,0 +1,7 @@
+PROGRAM Bool
+	VAR
+		X : BOOL := TRUE;
+	END_VAR
+
+	X := NOT X;
+END_PROGRAM

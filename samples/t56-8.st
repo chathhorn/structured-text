@@ -1,0 +1,11 @@
+FUNCTION Test : BOOL
+	VAR_INPUT
+		J : INT;
+	END_VAR
+
+	J := -1 ;
+	REPEAT
+	  J := J+2 ;
+	UNTIL J = 101
+	END_REPEAT ;
+END_FUNCTION

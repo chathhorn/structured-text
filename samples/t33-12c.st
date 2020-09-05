@@ -1,0 +1,9 @@
+FUNCTION_BLOCK ACCUM
+   VAR
+	    ACC : INT ;
+	    X1  : INT ;
+	    X2  : INT ;
+	    X3  : INT ;
+	END_VAR
+	ACC := ACC+X1*X2+X3*X4;
+END_FUNCTION_BLOCK

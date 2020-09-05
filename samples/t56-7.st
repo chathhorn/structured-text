@@ -1,0 +1,10 @@
+FUNCTION Test : BOOL
+	VAR_INPUT
+		J : INT;
+	END_VAR
+
+	J := 1;
+	WHILE J <= 100 DO
+		J := J+2 ;
+	END_WHILE ;
+END_FUNCTION

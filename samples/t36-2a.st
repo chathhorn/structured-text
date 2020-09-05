@@ -1,0 +1,20 @@
+FUNCTION_BLOCK F_TRIG
+	VAR_INPUT
+		LD, CD : BOOL;
+		PV : INT;
+	END_VAR
+	VAR_OUT
+		CV : INT;
+		Q : BOOL;
+	END_VAR;
+	VAR
+		PVmin : INT;
+	END_VAR
+
+	IF LD THEN CV := PV ;
+	ELSIF CD AND (CV > PVmin)
+	THEN CV := CV-1;
+	END_IF ;
+	Q := (CV <= 0) ;
+
+END_FUNCTION_BLOCK

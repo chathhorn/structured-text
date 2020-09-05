@@ -1,0 +1,16 @@
+FUNCTION Test : INT
+	VAR_INPUT
+		B, C, D : INT;
+		X : INT;
+	END_VAR
+	VAR_OUTPUT
+		A : INT;
+		NO_ERR : BOOL;
+	END_VAR
+
+	A := ADD(B, C, D);
+	A := SHL(IN:=B, N:=C);
+	A := SHL(EN:=ENABLE, IN:=B, N:=C, NOT ENO=>NO_ERR);
+	A := INC(V:=X);
+
+END_FUNCTION

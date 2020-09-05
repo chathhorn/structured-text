@@ -1,0 +1,11 @@
+PROGRAM Test
+	VAR MODULE_8_CONFIG:
+	  ANALOG_16_INPUT_CONFIGURATION :=
+	    (SIGNAL_TYPE := DIFFERENTIAL,
+	      CHANNEL
+	        := [4((RANGE := UNIPOLAR_1_5V)),
+	            (RANGE:= BIPOLAR_10_V,
+	             MIN_SCALE := 0,
+	             MAX_SCALE := 500)]);
+	END_VAR
+END_PROGRAM

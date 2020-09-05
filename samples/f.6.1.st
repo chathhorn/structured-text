@@ -1,0 +1,15 @@
+FUNCTION_BLOCK LAG1
+   VAR_INPUT
+     RUN : BOOL ;
+     XIN : REAL ;
+     TAU : REAL ;
+     CYCLE : REAL ;
+   END_VAR
+   VAR_OUTPUT XOUT : REAL ; END_VAR
+   VAR K : REAL ;
+   END_VAR
+   IF RUN THEN XOUT := XOUT + K * (XIN - XOUT) ;
+   ELSE XOUT := XIN ;
+        K := CYCLE /(CYCLE + TAU) ;
+   END_IF ;
+END_FUNCTION_BLOCK

@@ -1,0 +1,11 @@
+FUNCTION Test : INT
+	VAR_INPUT
+		B : INT;
+	END_VAR
+	VAR_OUTPUT
+		A : INT;
+	END_VAR
+
+	A := LIMIT(1, B, 5);
+
+END_FUNCTION

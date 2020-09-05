@@ -1,0 +1,35 @@
+PROGRAM temp
+  VAR
+    I1,I2,I3,I4:INT;
+    B1,B2,B3:BOOL;
+    R1,R2,R3,R4,R5,R6,R7:REAL;
+  END_VAR
+
+  PID(AUTO:=B1,PV:=R1,SP:=R2,X0:=R3,KP:=R4,TR:=R5,TD:=R6,CYCLE:=R7);
+
+END_PROGRAM
+
+FUNCTION_BLOCK PID
+   VAR_INPUT
+     AUTO : BOOL ;
+     PV : REAL ;
+     SP : REAL ;
+     X0 : REAL ;
+
+     KP : REAL ;
+     TR : REAL ;
+     TD : REAL ;
+     CYCLE : REAL ;
+   END_VAR
+   VAR_OUTPUT XOUT : REAL; END_VAR
+   VAR ERROR : REAL ;
+       ITERM : INTEGRAL ;
+       DTERM : DERIVATIVE ;
+   END_VAR
+   ERROR := PV - SP ;
+
+   ITERM (RUN := AUTO, R1 := NOT AUTO, XIN := ERROR,
+          X0 := TR * (X0 - ERROR), CYCLE := CYCLE) ;
+   DTERM (RUN := AUTO, XIN := ERROR, CYCLE := CYCLE) ;
+   XOUT := KP * (ERROR + ITERM.XOUT/TR + DTERM.XOUT*TD) ;
+ END_FUNCTION_BLOCK

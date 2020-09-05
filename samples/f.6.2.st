@@ -1,0 +1,17 @@
+FUNCTION_BLOCK DELAY
+  VAR_INPUT
+    RUN : BOOL ;
+    XIN : REAL ;
+    N   : INT ;
+  END_VAR
+  VAR_OUTPUT XOUT : REAL; END_VAR
+  VAR X : ARRAY [0..127]
+               OF REAL;
+      I, IXIN, IXOUT : INT := 0;
+  END_VAR
+  IF RUN THEN IXIN := MOD(IXIN + 1, 128) ; X[IXIN] := XIN ;
+              IXOUT := MOD(IXOUT + 1, 128) ; XOUT := X[IXOUT];
+  ELSE XOUT := XIN ; IXIN := N ; IXOUT := 0;
+       FOR I := 0 TO N DO X[I] := XIN; END_FOR;
+  END_IF ;
+END_FUNCTION_BLOCK

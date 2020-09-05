@@ -1,0 +1,6 @@
+PROGRAM Test
+	VAR RETAIN RTBT :
+  		ARRAY(1..2,1..3) OF INT
+      		:= [1,2,3(4)];
+	END_VAR
+END_PROGRAM

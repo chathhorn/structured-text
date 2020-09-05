@@ -1,0 +1,17 @@
+FUNCTION_BLOCK INTEGRAL
+   VAR_INPUT
+     RUN : BOOL ;
+     R1 : BOOL ;
+     XIN : REAL ;
+     X0  : REAL ;
+     CYCLE : REAL ;
+   END_VAR
+   VAR_OUTPUT
+     Q : BOOL ;
+     XOUT : REAL ;
+   END_VAR
+   Q := NOT R1 ;
+   IF R1 THEN XOUT := X0 ;
+   ELSIF RUN THEN XOUT := XOUT + XIN * TIME_TO_REAL(CYCLE);
+   END_IF ;
+ END_FUNCTION_BLOCK

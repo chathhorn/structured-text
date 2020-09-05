@@ -1,0 +1,6 @@
+PROGRAM Test
+	VAR
+  		MYBIT : BOOL := 1 ;
+  		OKAY : STRING[10] := 'OK';
+	END_VAR
+END_PROGRAM
