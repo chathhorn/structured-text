@@ -3,11 +3,13 @@ module StructuredText.Parser
     ( parse, parseTop
     ) where
 
+import Prelude hiding (takeWhile)
 import Control.Applicative ((<|>), many)
 import Data.Text (Text)
+import Data.Functor (($>))
 import Data.Attoparsec.Text
-      ( Parser, string, parseOnly, manyTill, takeTill, isEndOfLine
-      , anyChar, skipSpace)
+      ( Parser, string, parseOnly, manyTill, takeTill, isEndOfLine, endOfLine
+      , anyChar, skipSpace, asciiCI, inClass, takeWhile, char)
 import StructuredText.Syntax
 
 parse :: Text -> Either String STxt
@@ -15,6 +17,9 @@ parse = parseOnly parseTop
 
 parseTop :: Parser STxt
 parseTop = STxt <$> many parseGlobal
+
+parseId :: Parser Text
+parseId = takeWhile $ inClass "a-zA-Z0-9_"
 
 parseGlobal :: Parser Global
 parseGlobal = parseFunctionBlock
@@ -24,32 +29,64 @@ parseGlobal = parseFunctionBlock
 
 parseFunctionBlock :: Parser Global
 parseFunctionBlock = do
-      string "FUNCTION_BLOCK"
+      skipVerticalSpace
+      asciiCI "FUNCTION_BLOCK"
       skipSpace
-      n <- takeTill isEndOfLine
-      _ <- manyTill anyChar $ string "END_FUNCTION_BLOCK"
+      n <- parseId
+      _ <- manyTill anyChar $ asciiCI "END_FUNCTION_BLOCK"
       pure $ FunctionBlock n []
 
 parseFunction :: Parser Global
 parseFunction = do
-      string "FUNCTION"
+      skipVerticalSpace
+      asciiCI "FUNCTION"
       skipSpace
-      n <- takeTill isEndOfLine
-      _ <- manyTill anyChar $ string "END_FUNCTION"
-      pure $ Function n NoType []
+      n <- parseId
+      skipSpace
+      char ':'
+      skipSpace
+      t <- parseType
+      skipSpace
+      _ <- manyTill anyChar $ asciiCI "END_FUNCTION"
+      pure $ Function n t []
 
 parseProgram :: Parser Global
 parseProgram = do
-      string "PROGRAM"
+      skipVerticalSpace
+      asciiCI "PROGRAM"
       skipSpace
-      n <- takeTill isEndOfLine
-      _ <- manyTill anyChar $ string "END_PROGRAM"
+      n <- parseId
+      skipSpace
+      _ <- manyTill anyChar $ asciiCI "END_PROGRAM"
       pure $ Program n []
 
 parseTypeDef :: Parser Global
 parseTypeDef = do
-      string "TYPE"
+      skipVerticalSpace
+      asciiCI "TYPE"
       skipSpace
-      n <- takeTill isEndOfLine
-      _ <- manyTill anyChar $ string "END_TYPE"
-      pure $ TypeDef n
+      _ <- manyTill anyChar $ asciiCI "END_TYPE"
+      pure $ TypeDef ""
+
+skipVerticalSpace :: Parser ()
+skipVerticalSpace = many (skipLineComment <|> skipSpace) $> ()
+
+skipLineComment :: Parser ()
+skipLineComment = string "//" *> manyTill anyChar endOfLine $> ()
+
+skipComment :: Parser ()
+skipComment = (( string "(*" *> manyTill anyChar (string "*)")) <|> ( string "/*" *> manyTill anyChar (string "*\\"))) $> ()
+
+parseType :: Parser Type
+parseType = ( asciiCI "BOOL"  $> TBool  )
+        <|> ( asciiCI "REAL"  $> TReal  ) <|> ( asciiCI "LREAL" $> TLReal )
+        <|> ( asciiCI "INT"   $> TInt   ) <|> ( asciiCI "UINT"  $> TUInt )
+        <|> ( asciiCI "SINT"  $> TSInt  ) <|> ( asciiCI "USINT" $> TUSInt )
+        <|> ( asciiCI "DINT"  $> TDInt  ) <|> ( asciiCI "UDINT" $> TUDInt )
+        <|> ( asciiCI "LINT"  $> TLInt  ) <|> ( asciiCI "ULINT" $> TULInt )
+        <|> ( asciiCI "BYTE"  $> TByte  ) <|> ( asciiCI "WORD"  $> TWord )
+        <|> ( asciiCI "DWORD" $> TDWord ) <|> ( asciiCI "LWORD" $> TLWord )
+        <|> ( asciiCI "TIME"  $> TTime  ) <|> ( asciiCI "DATE"  $> TDate )
+        <|> ( (asciiCI "TIME_OF_DAY"    <|> asciiCI "TOD") $> TTimeOfDay )
+        <|> ( (asciiCI "DATE_AND_TYPE"  <|> asciiCI "DT" ) $> TDateTime )
+

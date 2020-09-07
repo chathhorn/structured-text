@@ -10,7 +10,7 @@ import Data.Text (Text)
 import Prettyprinter ((<+>), Pretty (..))
 
 data STxt = STxt [Global]
-      deriving Show
+      deriving (Eq, Show)
 
 instance Pretty STxt where
       pretty (STxt gs) = pretty gs
@@ -19,7 +19,7 @@ data Global = FunctionBlock Text [Exp]
             | Function Text Type [Exp]
             | Program Text [Exp]
             | TypeDef Text
-      deriving Show
+      deriving (Eq, Show)
 
 instance Pretty Global where
       pretty = \ case
@@ -29,8 +29,14 @@ instance Pretty Global where
             TypeDef f           -> pretty ("TYPE" :: Text) <+> pretty f
 
 data Exp = Exp Text
-      deriving Show
+      deriving (Eq, Show)
 
-data Type = Type Text
-          | NoType
-      deriving Show
+data Type = TBool
+          | TReal | TLReal
+          | TInt | TUInt | TSInt | TUSInt | TDInt | TUDInt | TLInt | TULInt
+          | TByte | TWord | TDWord | TLWord
+          | TTime | TDate | TTimeOfDay | TDateTime
+          | TString | TWString
+          | TId Text
+      deriving (Eq, Show)
+
