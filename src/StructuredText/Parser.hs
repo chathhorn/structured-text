@@ -9,7 +9,7 @@ import Data.Text (Text)
 import Data.Functor (($>))
 import Data.Attoparsec.Text
       ( Parser, string, parseOnly, manyTill, takeTill, isEndOfLine, endOfLine
-      , anyChar, skipSpace, asciiCI, inClass, takeWhile, char)
+      , anyChar, skipSpace, asciiCI, inClass, takeWhile, char, skipMany, skip, space)
 import StructuredText.Syntax
 
 parse :: Text -> Either String STxt
@@ -69,10 +69,12 @@ parseTypeDef = do
       pure $ TypeDef ""
 
 skipVerticalSpace :: Parser ()
-skipVerticalSpace = many (skipLineComment <|> skipSpace) $> ()
+skipVerticalSpace = skipMany ((space >> pure ()) <|> lineComment)
 
-skipLineComment :: Parser ()
-skipLineComment = string "//" *> manyTill anyChar endOfLine $> ()
+lineComment :: Parser ()
+lineComment = do
+      string "//"
+      skip (not . isEndOfLine)
 
 skipComment :: Parser ()
 skipComment = (( string "(*" *> manyTill anyChar (string "*)")) <|> ( string "/*" *> manyTill anyChar (string "*\\"))) $> ()
@@ -80,13 +82,13 @@ skipComment = (( string "(*" *> manyTill anyChar (string "*)")) <|> ( string "/*
 parseType :: Parser Type
 parseType = ( asciiCI "BOOL"  $> TBool  )
         <|> ( asciiCI "REAL"  $> TReal  ) <|> ( asciiCI "LREAL" $> TLReal )
-        <|> ( asciiCI "INT"   $> TInt   ) <|> ( asciiCI "UINT"  $> TUInt )
+        <|> ( asciiCI "INT"   $> TInt   ) <|> ( asciiCI "UINT"  $> TUInt  )
         <|> ( asciiCI "SINT"  $> TSInt  ) <|> ( asciiCI "USINT" $> TUSInt )
         <|> ( asciiCI "DINT"  $> TDInt  ) <|> ( asciiCI "UDINT" $> TUDInt )
         <|> ( asciiCI "LINT"  $> TLInt  ) <|> ( asciiCI "ULINT" $> TULInt )
-        <|> ( asciiCI "BYTE"  $> TByte  ) <|> ( asciiCI "WORD"  $> TWord )
+        <|> ( asciiCI "BYTE"  $> TByte  ) <|> ( asciiCI "WORD"  $> TWord  )
         <|> ( asciiCI "DWORD" $> TDWord ) <|> ( asciiCI "LWORD" $> TLWord )
-        <|> ( asciiCI "TIME"  $> TTime  ) <|> ( asciiCI "DATE"  $> TDate )
-        <|> ( (asciiCI "TIME_OF_DAY"    <|> asciiCI "TOD") $> TTimeOfDay )
-        <|> ( (asciiCI "DATE_AND_TYPE"  <|> asciiCI "DT" ) $> TDateTime )
+        <|> ( asciiCI "TIME"  $> TTime  ) <|> ( asciiCI "DATE"  $> TDate  )
+        <|> ( (asciiCI "TIME_OF_DAY"    <|> asciiCI "TOD") $> TTimeOfDay  )
+        <|> ( (asciiCI "DATE_AND_TYPE"  <|> asciiCI "DT" ) $> TDateTime   )
 
