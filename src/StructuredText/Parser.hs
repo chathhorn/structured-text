@@ -9,7 +9,7 @@ import Data.Text (Text)
 import Data.Functor (($>))
 import Data.Attoparsec.Text
       ( Parser, string, parseOnly, manyTill, takeTill, isEndOfLine, endOfLine
-      , anyChar, skipSpace, asciiCI, inClass, takeWhile, char, skipMany, skip, space)
+      , anyChar, skipSpace, asciiCI, inClass, takeWhile, char, skipMany, skip, space, satisfy)
 import StructuredText.Syntax
 
 parse :: Text -> Either String STxt
@@ -18,8 +18,9 @@ parse = parseOnly parseTop
 parseTop :: Parser STxt
 parseTop = STxt <$> many parseGlobal
 
+-- Note: identifiers aren't supposed to end with an underscore.
 parseId :: Parser Text
-parseId = takeWhile $ inClass "a-zA-Z0-9_"
+parseId = interspace *> (takeWhile $ inClass "a-zA-Z0-9_")
 
 parseGlobal :: Parser Global
 parseGlobal = parseFunctionBlock
@@ -29,55 +30,176 @@ parseGlobal = parseFunctionBlock
 
 parseFunctionBlock :: Parser Global
 parseFunctionBlock = do
-      skipVerticalSpace
-      asciiCI "FUNCTION_BLOCK"
-      skipSpace
+      interspace *> skipStr "FUNCTION_BLOCK"
       n <- parseId
-      _ <- manyTill anyChar $ asciiCI "END_FUNCTION_BLOCK"
-      pure $ FunctionBlock n []
+      vs <- many parseVarDecl
+      sts <- many parseStmt
+      interspace *> skipStr "END_FUNCTION_BLOCK"
+      pure $ FunctionBlock n vs sts
 
 parseFunction :: Parser Global
 parseFunction = do
-      skipVerticalSpace
-      asciiCI "FUNCTION"
-      skipSpace
+      interspace *> skipStr "FUNCTION"
       n <- parseId
-      skipSpace
-      char ':'
-      skipSpace
-      t <- parseType
-      skipSpace
-      _ <- manyTill anyChar $ asciiCI "END_FUNCTION"
-      pure $ Function n t []
+      t <- parseDeclType
+      vs <- many parseVarDecl
+      sts <- many parseStmt
+      interspace *> skipStr "END_FUNCTION"
+      pure $ Function n t vs sts
 
 parseProgram :: Parser Global
 parseProgram = do
-      skipVerticalSpace
-      asciiCI "PROGRAM"
-      skipSpace
+      interspace
+      skipStr "PROGRAM"
       n <- parseId
-      skipSpace
-      _ <- manyTill anyChar $ asciiCI "END_PROGRAM"
-      pure $ Program n []
+      vs <- many parseVarDecl
+      sts <- many parseStmt
+      interspace *>  skipStr "END_PROGRAM"
+      pure $ Program n vs sts
 
 parseTypeDef :: Parser Global
 parseTypeDef = do
-      skipVerticalSpace
-      asciiCI "TYPE"
-      skipSpace
-      _ <- manyTill anyChar $ asciiCI "END_TYPE"
+      interspace
+      skipStr "TYPE"
+      interspace
+      manyTill anyChar $ skipStr "END_TYPE"
       pure $ TypeDef ""
 
-skipVerticalSpace :: Parser ()
-skipVerticalSpace = skipMany ((space >> pure ()) <|> lineComment)
+parseVarDecl :: Parser VarDecl
+parseVarDecl = interspace
+      -- Order matters.
+      *> (      asciiCI "VAR_INPUT"    $> VarInput
+            <|> asciiCI "VAR_IN_OUT"   $> VarInOut
+            <|> asciiCI "VAR_OUTPUT"   $> VarOutput
+            -- Not sure if "VAR_OUT" allowed or not.
+            <|> asciiCI "VAR_OUT"      $> VarOutput
+            <|> asciiCI "VAR_EXTERNAL" $> VarExternal
+            <|> asciiCI "VAR"          $> Var)
+      <* manyTill anyChar (skipStr "END_VAR")
+
+-- e.g., " : INT"
+parseDeclType :: Parser Type
+parseDeclType = interspace *> char ':' *> interspace *> parseType
+
+parseStmt :: Parser Stmt
+parseStmt = parseAssign <|> parseCall
+      <|> parseReturn <|> parseIf
+      <|> parseCase <|> parseFor
+      <|> parseWhile <|> parseRepeat
+      <|> parseExit <|> parseEmpty
+
+parseAssign :: Parser Stmt
+parseAssign = parseId
+      *> colonEq
+      *> parseExp
+      *> semi
+      $> Assign
+
+-- TODO(chathhorn) (also other stmts)
+parseCall :: Parser Stmt
+parseCall = parseId
+      -- TODO(chathhorn): space?
+      *> interspace
+      *> ( (char '(' *> interspace *> char ')') -- c()
+            <|> (char '(' *> parseInit *> char ')') -- c(a:=b)
+            <|> (char '(' *> parseInit *> many (interspace *> char ',' *> parseInit)  *> interspace *> char ')')) -- c(a:=b, x:=y, ...)
+      *> semi
+      $> Call
+
+-- TODO(chathhorn)
+parseInit :: Parser ()
+parseInit = parseId *> colonEq *> parseExp $> ()
+
+
+parseReturn :: Parser Stmt
+parseReturn = interspace
+      *> skipStr "RETURN"
+      *> semi
+      $> Return
+
+parseIf :: Parser Stmt
+parseIf = interspace
+      *> skipStr "IF"
+      *> manyTill anyChar (skipStr "END_IF")
+      *> semi
+      $> If
+
+parseCase :: Parser Stmt
+parseCase = interspace
+      *> skipStr "CASE"
+      *> manyTill anyChar (skipStr "OF")
+      *> manyTill anyChar (skipStr "END_CASE")
+      *> semi
+      $> Case
+
+parseFor :: Parser Stmt
+parseFor = interspace
+      *> skipStr "FOR"
+      *> manyTill anyChar (skipStr "DO")
+      *> manyTill anyChar (skipStr "END_FOR")
+      *> semi
+      $> For
+
+parseWhile :: Parser Stmt
+parseWhile = interspace
+      *> skipStr "WHILE"
+      *> manyTill anyChar (skipStr "DO")
+      *> manyTill anyChar (skipStr "END_WHILE")
+      *> semi
+      $> While
+
+parseRepeat :: Parser Stmt
+parseRepeat = interspace
+      *> skipStr "REPEAT"
+      *> manyTill anyChar (skipStr "END_REPEAT")
+      *> semi
+      $> Repeat
+
+parseExit :: Parser Stmt
+parseExit = interspace
+      *> skipStr "EXIT"
+      *> semi
+      $> Exit
+
+parseEmpty :: Parser Stmt
+parseEmpty = interspace *> char ';' $> Empty
+
+-- TODO(chathhorn): order matters!
+parseExp :: Parser Exp
+parseExp = parseQualId <|> (Id <$> parseId)
+
+parseQualId :: Parser Exp
+parseQualId = do
+      x <- parseId
+      char '.' $> ()
+      y <- parseId
+      pure $ QualId x y
+
+semi :: Parser ()
+semi = interspace *> char ';' $> ()
+
+interspace :: Parser ()
+interspace = skipMany
+      (   ( space $> () )
+      <|> lineComment
+      <|> inlineComment
+      <|> inlineCommentC
+      )
+
+colonEq :: Parser ()
+colonEq = interspace *> string ":=" $> ()
+
+skipStr :: Text -> Parser ()
+skipStr s = asciiCI s $> ()
 
 lineComment :: Parser ()
-lineComment = do
-      string "//"
-      skip (not . isEndOfLine)
+lineComment = string "//" *> (skipMany $ satisfy $ not . isEndOfLine)
 
-skipComment :: Parser ()
-skipComment = (( string "(*" *> manyTill anyChar (string "*)")) <|> ( string "/*" *> manyTill anyChar (string "*\\"))) $> ()
+inlineComment :: Parser ()
+inlineComment = string "(*" *> manyTill anyChar (string "*)") $> ()
+
+inlineCommentC :: Parser ()
+inlineCommentC = string "/*" *> manyTill anyChar (string "*\\") $> ()
 
 parseType :: Parser Type
 parseType = ( asciiCI "BOOL"  $> TBool  )
@@ -89,6 +211,6 @@ parseType = ( asciiCI "BOOL"  $> TBool  )
         <|> ( asciiCI "BYTE"  $> TByte  ) <|> ( asciiCI "WORD"  $> TWord  )
         <|> ( asciiCI "DWORD" $> TDWord ) <|> ( asciiCI "LWORD" $> TLWord )
         <|> ( asciiCI "TIME"  $> TTime  ) <|> ( asciiCI "DATE"  $> TDate  )
-        <|> ( (asciiCI "TIME_OF_DAY"    <|> asciiCI "TOD") $> TTimeOfDay  )
-        <|> ( (asciiCI "DATE_AND_TYPE"  <|> asciiCI "DT" ) $> TDateTime   )
+        <|> ( ( asciiCI "TIME_OF_DAY"     <|>   asciiCI "TOD")  $> TTimeOfDay )
+        <|> ( ( asciiCI "DATE_AND_TYPE"   <|>   asciiCI "DT" )  $> TDateTime  )
 

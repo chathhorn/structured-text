@@ -2,15 +2,12 @@
 module Main where
 
 import Prelude hiding (readFile)
-import Control.Monad (when, unless)
+import Control.Monad (unless)
 import System.Exit (exitFailure)
-import Data.Text (Text)
 import Data.Text.IO (readFile)
 import System.Environment (getArgs)
 import StructuredText.Parser (parse)
-import Prettyprinter.Util (putDocW)
-import Prettyprinter (pretty)
-import System.Console.GetOpt (getOpt, usageInfo, OptDescr (..), ArgOrder (..), ArgDescr (..))
+import System.Console.GetOpt (getOpt, usageInfo, OptDescr (..), ArgOrder (..))
 import System.IO (hPutStr, hPutStrLn, stderr)
 
 data Flag = NoFlag
@@ -31,7 +28,7 @@ parseFile f = do
 
 main :: IO ()
 main = do
-      (flags, filenames, errs) <-  getOpt Permute options <$> getArgs
+      (_, filenames, errs) <-  getOpt Permute options <$> getArgs
 
       unless (null errs) $ do
             mapM_ (hPutStrLn stderr) errs
