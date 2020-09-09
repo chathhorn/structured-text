@@ -6,9 +6,10 @@ import Control.Monad (unless)
 import System.Exit (exitFailure)
 import Data.Text.IO (readFile)
 import System.Environment (getArgs)
-import StructuredText.Parser (parse)
+import Text.Megaparsec (parse, errorBundlePretty)
 import System.Console.GetOpt (getOpt, usageInfo, OptDescr (..), ArgOrder (..))
 import System.IO (hPutStr, hPutStrLn, stderr)
+import StructuredText.Parser (parseTop)
 
 data Flag = NoFlag
       deriving (Eq, Show)
@@ -22,8 +23,8 @@ exitUsage = hPutStr stderr (usageInfo "Usage: st-parse [OPTION...] <filename.rw>
 parseFile :: FilePath -> IO ()
 parseFile f = do
       txt <- readFile f
-      case parse txt of
-            Left e  -> putStrLn $ "Error: " ++ e
+      case parse parseTop f txt of
+            Left e  -> putStrLn $ "Error: " ++ errorBundlePretty e
             Right s -> print s
 
 main :: IO ()

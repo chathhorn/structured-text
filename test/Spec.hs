@@ -6,9 +6,10 @@ import Data.Text.IO (readFile)
 import System.FilePath ((</>), takeBaseName, takeFileName)
 import Test.Tasty
 import Test.Tasty.Hspec
-import Test.Hspec.Attoparsec
+import Test.Hspec.Megaparsec
 
-import StructuredText.Parser (parse, parseTop)
+import Text.Megaparsec (parse)
+import StructuredText.Parser (parseTop)
 import Paths_structured_text (getDataFileName)
 
 main :: IO ()
@@ -21,7 +22,7 @@ main = do
 spec :: FilePath -> Text -> Spec
 spec fp = describe ("parse_" ++ takeBaseName fp)
       . it ("should parse the file " ++ takeFileName fp)
-      . (parseTop `shouldSucceedOn`)
+      . (parse parseTop fp `shouldSucceedOn`)
 
 stFiles :: IO [FilePath]
 stFiles = do
