@@ -26,6 +26,8 @@ ghc-options:
 
 library:
   source-dirs: src
+  dependencies:
+  - parser-combinators >= 1.2 && < 1.3
 
 executables:
   st-parse:

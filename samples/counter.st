@@ -5,7 +5,7 @@ PROGRAM Counter
 	END_VAR
 	A := 0;
 	A := Inc(In:=Counter, Out=>Counter) + Dec(In:=Counter, Out=>Counter);
-	@ltlmc : L
+//	@ltlmc : L
 
 END_PROGRAM
 

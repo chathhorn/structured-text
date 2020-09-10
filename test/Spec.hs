@@ -9,7 +9,7 @@ import Test.Tasty.Hspec
 import Test.Hspec.Megaparsec
 
 import Text.Megaparsec (parse)
-import StructuredText.Parser (parseTop)
+import StructuredText.Parser (top)
 import Paths_structured_text (getDataFileName)
 
 main :: IO ()
@@ -22,7 +22,7 @@ main = do
 spec :: FilePath -> Text -> Spec
 spec fp = describe ("parse_" ++ takeBaseName fp)
       . it ("should parse the file " ++ takeFileName fp)
-      . (parse parseTop fp `shouldSucceedOn`)
+      . (parse top fp `shouldSucceedOn`)
 
 stFiles :: IO [FilePath]
 stFiles = do

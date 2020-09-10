@@ -2,10 +2,12 @@
 module StructuredText.Syntax
       ( STxt (..)
       , Global (..)
-      , Exp (..)
+      , Expr (..)
       , Type (..)
       , VarDecl (..)
       , Stmt (..)
+      , Op (..)
+      , Arg (..)
       ) where
 
 import Data.Text (Text)
@@ -34,21 +36,35 @@ data VarDecl = Var | VarInput | VarOutput
              | VarInOut | VarExternal
       deriving (Eq, Show)
 
-data Stmt = Assign | Call | Return | If
-          | Case | For | While | Repeat
-          | Exit | Empty
-      deriving (Eq, Show) 
-
-data Exp = Id Text
-         | QualId Text Text
+data Arg = Arg Expr
+         | ArgIn Text Expr
+         | ArgOut Text Text
+         | ArgOutNeg Text Text
       deriving (Eq, Show)
 
-data Type = TBool
+data Stmt = Assign Text Expr | Invoke Text [Arg] | Return | If
+          | Case | For | While | Repeat
+          | Exit | Empty
+      deriving (Eq, Show)
+
+data Op = Plus | Minus | Mult | Div | Mod | Exp
+        | Lt | Gt | Lte | Gte | Eq | Neq | And | Xor | Or
+      deriving (Eq, Show)
+
+data Expr = Id Text
+         | QualId Text Text
+         | BinOp Op Expr Expr
+         | Negate Expr
+         | Not Expr
+         | Call Text [Arg]
+         | IntLit Int
+      deriving (Eq, Show)
+
+data Type = TBool   | TId Text
           | TReal   | TLReal
           | TInt    | TUInt | TSInt | TUSInt | TDInt | TUDInt | TLInt | TULInt
           | TByte   | TWord | TDWord | TLWord
           | TTime   | TDate | TTimeOfDay | TDateTime
           | TString | TWString
-          | TId Text
       deriving (Eq, Show)
 

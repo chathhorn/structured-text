@@ -1,220 +1,248 @@
 {-# LANGUAGE OverloadedStrings #-}
 module StructuredText.Parser
-    ( parseTop, Parser
+    ( top, Parser
     ) where
 
-import Data.Char (isAscii, isAlphaNum)
-import Data.Text (Text)
-import Data.Functor (($>))
-import Data.Void (Void)
+import Control.Monad.Combinators.Expr ( makeExprParser, Operator (..) )
+import Data.Char ( isAscii, isAlpha, isAlphaNum )
+import Data.Text ( Text, singleton )
+import Data.Functor ( ($>) )
+import Data.Void ( Void )
 import Text.Megaparsec
-      ( try, Token, Parsec, takeWhile1P, manyTill, skipSome, anySingle, many, (<|>))
-import Text.Megaparsec.Char (char, string, string', space1, eol)
+      ( try, Parsec, takeWhileP, manyTill, anySingle
+      , many, (<|>), (<?>), between, sepBy, satisfy
+      )
 import StructuredText.Syntax
+
+import qualified Text.Megaparsec.Char as C
+import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void Text
 
-parseTop :: Parser STxt
-parseTop = STxt <$> many parseGlobal
+top :: Parser STxt
+top = STxt <$> (space *> many global)
 
 -- Note: identifiers aren't supposed to end with an underscore.
-parseId :: Parser Text
-parseId = interspace *> (takeWhile1P (Just "legal identifier character") $ isIdChar)
+ident :: Parser Text
+ident = do
+      x <- satisfy isInitIdChar
+      xs <- takeWhileP (Just "legal identifier character") isIdChar
+      space
+      pure $ singleton x <> xs
 
-isIdChar :: Token Text -> Bool
-isIdChar c   = c == '_' || isAscii c && isAlphaNum c
+isIdChar :: Char -> Bool
+isIdChar c = c == '_' || isAscii c && isAlphaNum c
 
-parseGlobal :: Parser Global
-parseGlobal = try parseFunctionBlock
-          <|> try parseFunction
-          <|> try parseProgram
-          <|> try parseTypeDef
+isInitIdChar :: Char -> Bool
+isInitIdChar c = isAscii c && isAlpha c
 
-parseFunctionBlock :: Parser Global
-parseFunctionBlock = do
-      interspace
-      skipStr "FUNCTION_BLOCK"
-      n <- parseId
-      vs <- many $ try parseVarDecl
-      sts <- many parseStmt
-      interspace *> skipStr "END_FUNCTION_BLOCK" $> ()
+global :: Parser Global
+global = try functionBlock
+      <|> try function
+      <|> try program
+      <|> try typeDef
+
+functionBlock :: Parser Global
+functionBlock = do
+      skipSymbol' "FUNCTION_BLOCK"
+      n <- ident
+      vs <- many $ try varDecl
+      sts <- many stmt
+      skipSymbol' "END_FUNCTION_BLOCK"
       pure $ FunctionBlock n vs sts
 
-parseFunction :: Parser Global
-parseFunction = do
-      interspace
-      skipStr "FUNCTION"
-      n <- parseId
+function :: Parser Global
+function = do
+      skipSymbol' "FUNCTION"
+      n <- ident
       t <- parseDeclType
-      vs <- many $ try parseVarDecl
-      sts <- many parseStmt
-      interspace *> skipStr "END_FUNCTION" $> ()
+      vs <- many $ try varDecl
+      sts <- many stmt
+      skipSymbol' "END_FUNCTION"
       pure $ Function n t vs sts
 
-parseProgram :: Parser Global
-parseProgram = do
-      interspace
-      skipStr "PROGRAM"
-      n <- parseId
-      vs <- many $ try parseVarDecl
-      sts <- many parseStmt
-      interspace *>  skipStr "END_PROGRAM" $> ()
+program :: Parser Global
+program = do
+      skipSymbol' "PROGRAM"
+      n <- ident
+      vs <- many $ try varDecl
+      sts <- many stmt
+      skipSymbol' "END_PROGRAM"
       pure $ Program n vs sts
 
-parseTypeDef :: Parser Global
-parseTypeDef = do
-      interspace
-      skipStr "TYPE"
-      interspace
-      manyTill anySingle (skipStr "END_TYPE") $> ()
-      pure $ TypeDef ""
+typeDef :: Parser Global
+typeDef = symbol' "TYPE" *> manyTill anySingle (symbol' "END_TYPE") $> TypeDef ""
 
-parseVarDecl :: Parser VarDecl
-parseVarDecl = interspace
-      -- Order matters.
-      *>    (   string' "VAR_INPUT"    $> VarInput
-            <|> string' "VAR_IN_OUT"   $> VarInOut
-            <|> string' "VAR_OUTPUT"   $> VarOutput
-            -- Not sure if "VAR_OUT" allowed or not.
-            <|> string' "VAR_OUT"      $> VarOutput
-            <|> string' "VAR_EXTERNAL" $> VarExternal
-            <|> string' "VAR"          $> Var)
-      <* manyTill anySingle (skipStr "END_VAR")
+varDecl :: Parser VarDecl
+varDecl = (   symbol' "VAR_INPUT"    $> VarInput -- Order matters.
+          <|> symbol' "VAR_IN_OUT"   $> VarInOut
+          <|> symbol' "VAR_OUTPUT"   $> VarOutput
+          -- Not sure if "VAR_OUT" allowed or not.
+          <|> symbol' "VAR_OUT"      $> VarOutput
+          <|> symbol' "VAR_EXTERNAL" $> VarExternal
+          <|> symbol' "VAR"          $> Var)
+      <* manyTill anySingle (symbol' "END_VAR")
 
 -- e.g., " : INT"
 parseDeclType :: Parser Type
-parseDeclType = interspace *> char ':' *> interspace *> parseType
+parseDeclType = symbol ":" *> typ
 
-parseStmt :: Parser Stmt
-parseStmt = try parseAssign <|> try parseCall
-        <|> try parseReturn <|> try parseIf
-        <|> try parseCase   <|> try parseFor
-        <|> try parseWhile  <|> try parseRepeat
-        <|> try parseExit   <|> try parseEmpty
+stmt :: Parser Stmt
+stmt = try assignStmt <|> try invokeStmt
+   <|> try returnStmt <|> try ifStmt
+   <|> try caseStmt   <|> try forStmt
+   <|> try whileStmt  <|> try repeatStmt
+   <|> try exitStmt   <|> try emptyStmt
 
-parseAssign :: Parser Stmt
-parseAssign = parseId
-      *> colonEq
-      *> parseExp
-      *> semi
-      $> Assign
+assignStmt :: Parser Stmt
+assignStmt = Assign <$> ident <*> (colonEq *> expr <* semi)
 
--- TODO(chathhorn) (also other stmts)
-parseCall :: Parser Stmt
-parseCall = parseId
-      -- TODO(chathhorn): space?
-      *> interspace
-      *> ( try (char '(' *> interspace *> char ')') -- c()
-            <|> try (char '(' *> parseInit *> char ')') -- c(a:=b)
-            <|> try (char '(' *> parseInit *> many (interspace *> char ',' *> parseInit)  *> interspace *> char ')')) -- c(a:=b, x:=y, ...)
-      *> semi
-      $> Call
+-- TODO(chathhorn): (also other stmts)
+invokeStmt :: Parser Stmt
+invokeStmt = Invoke <$> ident <*> parens (commas arg) <* semi
 
--- TODO(chathhorn)
-parseInit :: Parser ()
-parseInit = parseId *> colonEq *> parseExp $> ()
+-- TODO(chathhorn): suspect either all arguments must be named or none.
+arg :: Parser Arg
+arg = try (ArgOutNeg <$> (symbol' "NOT" *> ident <* symbol "=>") <*> ident)
+      <|> try (ArgOut <$> (ident <* symbol "=>") <*> ident)
+      <|> try (ArgIn <$> ident <*> (colonEq *> expr))
+      <|> try (Arg <$> expr)
 
+returnStmt :: Parser Stmt
+returnStmt = symbol' "RETURN" *> semi $> Return
 
-parseReturn :: Parser Stmt
-parseReturn = interspace
-      *> skipStr "RETURN"
-      *> semi
-      $> Return
-
-parseIf :: Parser Stmt
-parseIf = interspace
-      *> skipStr "IF"
-      *> manyTill anySingle (skipStr "END_IF")
+ifStmt :: Parser Stmt
+ifStmt = symbol' "IF"
+      *> manyTill anySingle (symbol' "END_IF")
       *> semi
       $> If
+      <?> "IF statement"
 
-parseCase :: Parser Stmt
-parseCase = interspace
-      *> skipStr "CASE"
-      *> manyTill anySingle (skipStr "OF")
-      *> manyTill anySingle (skipStr "END_CASE")
+caseStmt :: Parser Stmt
+caseStmt = symbol' "CASE"
+      *> manyTill anySingle (symbol' "OF")
+      *> manyTill anySingle (symbol' "END_CASE")
       *> semi
       $> Case
+      <?> "CASE statement"
 
-parseFor :: Parser Stmt
-parseFor = interspace
-      *> skipStr "FOR"
-      *> manyTill anySingle (skipStr "DO")
-      *> manyTill anySingle (skipStr "END_FOR")
+forStmt :: Parser Stmt
+forStmt = symbol' "FOR"
+      *> manyTill anySingle (symbol' "DO")
+      *> manyTill anySingle (symbol' "END_FOR")
       *> semi
       $> For
+      <?> "FOR statement"
 
-parseWhile :: Parser Stmt
-parseWhile = interspace
-      *> skipStr "WHILE"
-      *> manyTill anySingle (skipStr "DO")
-      *> manyTill anySingle (skipStr "END_WHILE")
+whileStmt :: Parser Stmt
+whileStmt = symbol' "WHILE"
+      *> manyTill anySingle (symbol' "DO")
+      *> manyTill anySingle (symbol' "END_WHILE")
       *> semi
       $> While
+      <?> "WHILE statement"
 
-parseRepeat :: Parser Stmt
-parseRepeat = interspace
-      *> skipStr "REPEAT"
-      *> manyTill anySingle (skipStr "END_REPEAT")
+repeatStmt :: Parser Stmt
+repeatStmt = symbol' "REPEAT"
+      *> manyTill anySingle (symbol' "END_REPEAT")
       *> semi
       $> Repeat
+      <?> "REPEAT statement"
 
-parseExit :: Parser Stmt
-parseExit = interspace
-      *> skipStr "EXIT"
-      *> semi
-      $> Exit
+exitStmt :: Parser Stmt
+exitStmt = symbol' "EXIT" *> semi $> Exit <?> "EXIT statement"
 
-parseEmpty :: Parser Stmt
-parseEmpty = interspace *> char ';' $> Empty
+emptyStmt :: Parser Stmt
+emptyStmt = symbol ";" $> Empty <?> "empty statement"
 
--- TODO(chathhorn): order matters!
-parseExp :: Parser Exp
-parseExp = try parseQualId <|> (Id <$> parseId)
+expr :: Parser Expr
+expr = makeExprParser term opTable <?> "expression"
 
-parseQualId :: Parser Exp
-parseQualId = do
-      x <- parseId
-      char '.' $> ()
-      y <- parseId
-      pure $ QualId x y
+term :: Parser Expr
+term = try (parens expr)
+      <|> try (Call <$> ident <*> parens (commas arg))
+      <|> try qualIdent
+      <|> try (Id <$> ident)
+      <|> try (IntLit <$> integer)
+      <?> "term"
+
+opTable :: [[Operator Parser Expr]]
+opTable =
+      [ [ Prefix $ symbol "-"    $> Negate
+        , Prefix $ symbol' "NOT" $> Not
+        ]
+      , [ InfixL $ symbol "**"   $> BinOp Exp ]
+      , [ InfixL $ symbol "*"    $> BinOp Mult
+        , InfixL $ symbol "/"    $> BinOp Div
+        , InfixL $ symbol' "MOD" $> BinOp Mod
+        ]
+      , [ InfixL $ symbol "+"    $> BinOp Plus
+        , InfixL $ symbol "-"    $> BinOp Minus
+        ]
+      , [ InfixL $ symbol "<"    $> BinOp Lt
+        , InfixL $ symbol ">"    $> BinOp Gt
+        , InfixL $ symbol "<="   $> BinOp Lte
+        , InfixL $ symbol ">="   $> BinOp Gte
+        ]
+      , [ InfixL $ symbol "="    $> BinOp Eq
+        , InfixL $ symbol "<>"   $> BinOp Neq
+        ]
+      , [ InfixL $ symbol "&"    $> BinOp And
+        , InfixL $ symbol' "AND" $> BinOp And
+        ]
+      , [ InfixL $ symbol' "XOR" $> BinOp Xor ]
+      , [ InfixL $ symbol' "OR"  $> BinOp Or ]
+      ]
+
+qualIdent :: Parser Expr
+qualIdent = QualId <$> ident <*> (symbol "." *> ident)
+
+typ :: Parser Type
+typ = ( symbol' "BOOL"  $> TBool  )
+        <|> ( symbol' "REAL"  $> TReal  ) <|> ( symbol' "LREAL" $> TLReal )
+        <|> ( symbol' "INT"   $> TInt   ) <|> ( symbol' "UINT"  $> TUInt  )
+        <|> ( symbol' "SINT"  $> TSInt  ) <|> ( symbol' "USINT" $> TUSInt )
+        <|> ( symbol' "DINT"  $> TDInt  ) <|> ( symbol' "UDINT" $> TUDInt )
+        <|> ( symbol' "LINT"  $> TLInt  ) <|> ( symbol' "ULINT" $> TULInt )
+        <|> ( symbol' "BYTE"  $> TByte  ) <|> ( symbol' "WORD"  $> TWord  )
+        <|> ( symbol' "DWORD" $> TDWord ) <|> ( symbol' "LWORD" $> TLWord )
+        <|> ( symbol' "TIME"  $> TTime  ) <|> ( symbol' "DATE"  $> TDate  )
+        <|> ( ( symbol' "TIME_OF_DAY"     <|>   symbol' "TOD")  $> TTimeOfDay )
+        <|> ( ( symbol' "DATE_AND_TYPE"   <|>   symbol' "DT" )  $> TDateTime  )
+
+-----------
+-- Lexer --
+-----------
+
+skipLineComment :: Parser ()
+skipLineComment = L.skipLineComment "//"
+
+skipBlockComment :: Parser ()
+skipBlockComment = try (L.skipBlockComment "(*" "*)") <|> try (L.skipBlockComment "/*" "*/")
+
+space :: Parser ()
+space = L.space C.space1 skipLineComment skipBlockComment
+
+symbol :: Text -> Parser Text
+symbol = L.symbol space
+
+symbol' :: Text -> Parser Text
+symbol' = L.symbol' space
+
+skipSymbol' :: Text -> Parser ()
+skipSymbol' s = symbol' s $> ()
 
 semi :: Parser ()
-semi = interspace *> char ';' $> ()
-
-interspace :: Parser ()
-interspace = skipSome
-      (   try space1
-      <|> try lineComment
-      <|> try inlineComment
-      <|> try inlineCommentC
-      )
+semi = symbol ";" $> ()
 
 colonEq :: Parser ()
-colonEq = interspace *> string ":=" $> ()
+colonEq = symbol ":=" $> ()
 
-skipStr :: Text -> Parser ()
-skipStr s = string' s $> ()
+parens :: Parser a -> Parser a
+parens = between (symbol "(") $ symbol ")"
 
-lineComment :: Parser ()
-lineComment = string "//" *> manyTill anySingle eol $> ()
+commas :: Parser a -> Parser [a]
+commas p = p `sepBy` symbol ","
 
-inlineComment :: Parser ()
-inlineComment = string "(*" *> manyTill anySingle (string "*)") $> ()
-
-inlineCommentC :: Parser ()
-inlineCommentC = string "/*" *> manyTill anySingle (string "*\\") $> ()
-
-parseType :: Parser Type
-parseType = ( string' "BOOL"  $> TBool  )
-        <|> ( string' "REAL"  $> TReal  ) <|> ( string' "LREAL" $> TLReal )
-        <|> ( string' "INT"   $> TInt   ) <|> ( string' "UINT"  $> TUInt  )
-        <|> ( string' "SINT"  $> TSInt  ) <|> ( string' "USINT" $> TUSInt )
-        <|> ( string' "DINT"  $> TDInt  ) <|> ( string' "UDINT" $> TUDInt )
-        <|> ( string' "LINT"  $> TLInt  ) <|> ( string' "ULINT" $> TULInt )
-        <|> ( string' "BYTE"  $> TByte  ) <|> ( string' "WORD"  $> TWord  )
-        <|> ( string' "DWORD" $> TDWord ) <|> ( string' "LWORD" $> TLWord )
-        <|> ( string' "TIME"  $> TTime  ) <|> ( string' "DATE"  $> TDate  )
-        <|> ( ( string' "TIME_OF_DAY"     <|>   string' "TOD")  $> TTimeOfDay )
-        <|> ( ( string' "DATE_AND_TYPE"   <|>   string' "DT" )  $> TDateTime  )
-
+integer :: Parser Int
+integer = L.signed space $ L.lexeme space L.decimal
