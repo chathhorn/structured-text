@@ -1,13 +1,9 @@
 {-# LANGUAGE OverloadedStrings, LambdaCase #-}
 module StructuredText.Syntax
-      ( STxt (..)
-      , Global (..)
-      , Expr (..)
-      , Type (..)
-      , VarDecl (..)
-      , Stmt (..)
-      , Op (..)
-      , Arg (..)
+      ( STxt (..), Global (..), Expr (..)
+      , Type (..), VarDecl (..), Stmt (..)
+      , Op (..), Arg (..), Elsif (..)
+      , LVal (..), Lit (..)
       ) where
 
 import Data.Text (Text)
@@ -23,6 +19,7 @@ data Global = FunctionBlock Text [VarDecl] [Stmt]
             | Function Text Type [VarDecl] [Stmt]
             | Program Text [VarDecl] [Stmt]
             | TypeDef Text
+            | VarGlobal
       deriving (Eq, Show)
 
 instance Pretty Global where
@@ -42,8 +39,15 @@ data Arg = Arg Expr
          | ArgOutNeg Text Text
       deriving (Eq, Show)
 
-data Stmt = Assign Text Expr | Invoke Text [Arg] | Return | If
-          | Case | For | While | Repeat
+data Elsif = Elsif Expr [Stmt]
+      deriving (Eq, Show)
+
+data Stmt = Assign LVal Expr | Invoke Text [Arg] | Return
+          | If Expr [Stmt] [Elsif] [Stmt]
+          | Case
+          | For Text Expr Expr (Maybe Expr) [Stmt]
+          | While Expr [Stmt]
+          | Repeat [Stmt] Expr
           | Exit | Empty
       deriving (Eq, Show)
 
@@ -51,13 +55,24 @@ data Op = Plus | Minus | Mult | Div | Mod | Exp
         | Lt | Gt | Lte | Gte | Eq | Neq | And | Xor | Or
       deriving (Eq, Show)
 
-data Expr = Id Text
-         | QualId Text Text
+data LVal = Id Text
+      | QualId Text Text
+      | Index Text Expr
+      deriving (Eq, Show)
+
+data Lit = Bool Bool
+         | Int Int
+         | Float Double
+         | Duration Int Int Int Int Int -- days, hours, mins, secs, msecs
+      deriving (Eq, Show)
+
+data Expr = LV LVal
          | BinOp Op Expr Expr
          | Negate Expr
          | Not Expr
+         | AddrOf Expr
          | Call Text [Arg]
-         | IntLit Int
+         | Lit Lit
       deriving (Eq, Show)
 
 data Type = TBool   | TId Text
