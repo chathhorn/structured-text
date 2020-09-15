@@ -5,7 +5,7 @@ FUNCTION Test : INT
 	VAR_OUTPUT
 		A, CV : INT;
 		C : REAL;
-	END_OUTPUT
+	END_VAR
 
 	A := B;
 	CV := CV+1;

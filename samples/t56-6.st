@@ -5,7 +5,7 @@ FUNCTION Test : BOOL
 
 	J := 101 ;
 	FOR I := 1 TO 100 BY 2 DO
-		IF I MOD 2 == 0 THEN
+		IF I MOD 2 = 0 THEN
 			J := I ;
 			EXIT ;
 		END_IF ;
