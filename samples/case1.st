@@ -8,11 +8,16 @@ PROGRAM pumps
       CASE PumpState OF
       0:
             StateDescription := "Stopped";
+            PumpState := 1;
       1:
             StateDescription := "Running";
+            PumpState := 2;
       2:
             StateDescription := "Failed";
+            PumpState := 3;
+      3..9:
+            StateDescription := "Another case";
       ELSE
-            StateDescription := L"Invalid";
+            StateDescription := "Invalid";
       END_CASE;
 END_PROGRAM

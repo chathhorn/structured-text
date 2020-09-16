@@ -3,7 +3,7 @@ module StructuredText.Syntax
       ( STxt (..), Global (..), Expr (..)
       , Type (..), VarDecl (..), Stmt (..)
       , Op (..), Arg (..), Elsif (..)
-      , LVal (..), Lit (..)
+      , LVal (..), Lit (..), Labeled (..)
       ) where
 
 import Data.Text (Text)
@@ -27,7 +27,8 @@ instance Pretty Global where
             FunctionBlock f _ _   -> pretty ("FUNCTION_BLOCK" :: Text) <+> pretty f
             Function f _ _ _      -> pretty ("FUNCTION" :: Text) <+> pretty f
             Program f _ _         -> pretty ("PROGRAM" :: Text) <+> pretty f
-            TypeDef f           -> pretty ("TYPE" :: Text) <+> pretty f
+            TypeDef f             -> pretty ("TYPE" :: Text) <+> pretty f
+            VarGlobal             -> pretty ("VAR_GLOBAL" :: Text)
 
 data VarDecl = Var | VarInput | VarOutput
              | VarInOut | VarExternal
@@ -42,9 +43,13 @@ data Arg = Arg Expr
 data Elsif = Elsif Expr [Stmt]
       deriving (Eq, Show)
 
+data Labeled = Label Expr [Stmt]
+             | LabelRange Expr Expr [Stmt]
+      deriving (Eq, Show)
+
 data Stmt = Assign LVal Expr | Invoke Text [Arg] | Return
           | If Expr [Stmt] [Elsif] [Stmt]
-          | Case
+          | Case Expr [Labeled] [Stmt]
           | For Text Expr Expr (Maybe Expr) [Stmt]
           | While Expr [Stmt]
           | Repeat [Stmt] Expr
@@ -64,6 +69,8 @@ data Lit = Bool Bool
          | Int Int
          | Float Double
          | Duration Int Int Int Int Int -- days, hours, mins, secs, msecs
+         | String Text
+         | WString Text
       deriving (Eq, Show)
 
 data Expr = LV LVal

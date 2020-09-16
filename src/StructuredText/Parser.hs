@@ -5,7 +5,7 @@ module StructuredText.Parser
 
 import Control.Monad.Combinators.Expr ( makeExprParser, Operator (..) )
 import Data.Char ( isAscii, isAlpha, isAlphaNum )
-import Data.Text ( Text, singleton )
+import Data.Text ( Text, singleton, pack )
 import Data.Functor ( ($>) )
 import Data.Void ( Void )
 import Text.Megaparsec
@@ -118,12 +118,18 @@ ifStmt = If
       <* semi
       <?> "IF statement"
 
+-- TODO(chathhorn): comma-seperated label lists
+labeled :: Parser Labeled
+labeled = try (LabelRange <$> expr <*> (symbol ".." *> expr) <*> (symbol ":" *> many stmt))
+      <|> try (Label <$> expr <*> (symbol ":" *> many stmt))
+
 caseStmt :: Parser Stmt
-caseStmt = symbol' "CASE"
-      *> symbol' "OF"
-      *> symbol' "END_CASE"
-      *> semi
-      $> Case
+caseStmt = Case
+      <$> (symbol' "CASE" *> expr <* symbol' "OF")
+      <*> many labeled
+      <*> (try (symbol' "ELSE" *> many stmt) <|> pure [])
+      <* symbol' "END_CASE"
+      <* semi
       <?> "CASE statement"
 
 forStmt :: Parser Stmt
@@ -172,6 +178,15 @@ lit = try (Float <$> float)
       <|> try (Int <$> integer)
       <|> try (Bool <$> bool)
       <|> try duration
+      <|> try (WString <$> wstring)
+      <|> try (String <$> string)
+
+-- TODO(chathhorn): escape chars.
+wstring :: Parser Text
+wstring = pack <$> (symbol "\"" *> manyTill anySingle (symbol "\""))
+
+string :: Parser Text
+string = pack <$> (symbol "\'" *> manyTill anySingle (symbol "\'"))
 
 duration :: Parser Lit
 duration =  (symbol' "TIME" <|> symbol' "T") *> hash *> (Duration
@@ -294,6 +309,7 @@ parens = between (symbol "(") $ symbol ")"
 commas :: Parser a -> Parser [a]
 commas p = p `sepBy` symbol ","
 
+-- TODO(chathhorn): underscores are allowed in numeric literals.
 integer :: Parser Int
 integer = try hexadecimal <|> try binary <|> try octal <|> try decimal
 
