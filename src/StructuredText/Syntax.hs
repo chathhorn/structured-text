@@ -19,7 +19,7 @@ data Global = FunctionBlock Text [VarDecl] [Stmt]
             | Function Text Type [VarDecl] [Stmt]
             | Program Text [VarDecl] [Stmt]
             | TypeDef Text
-            | VarGlobal
+            | GlobalVars VarDecl
       deriving (Eq, Show)
 
 instance Pretty Global where
@@ -28,10 +28,14 @@ instance Pretty Global where
             Function f _ _ _      -> pretty ("FUNCTION" :: Text) <+> pretty f
             Program f _ _         -> pretty ("PROGRAM" :: Text) <+> pretty f
             TypeDef f             -> pretty ("TYPE" :: Text) <+> pretty f
-            VarGlobal             -> pretty ("VAR_GLOBAL" :: Text)
 
-data VarDecl = Var | VarInput | VarOutput
-             | VarInOut | VarExternal
+data VarDecl = Var
+             | VarInput
+             | VarOutput
+             | VarInOut
+             | VarExternal
+             | VarGlobal
+             | VarAccess
       deriving (Eq, Show)
 
 data Arg = Arg Expr

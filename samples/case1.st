@@ -3,6 +3,12 @@ VAR_GLOBAL
       StateDescription : String;
 END_VAR
 
+// Duplicated for including example of VAR_ACCESS syntax.
+VAR_ACCESS
+      PumpState_A : Int;
+      StateDescription_A : String;
+END_VAR
+
 PROGRAM pumps
       (* Translate the pump state into a text string *)
       CASE PumpState OF

@@ -28,13 +28,13 @@ global = try functionBlock
       <|> try function
       <|> try program
       <|> try typeDef
-      <|> try varGlobal
+      <|> try globalVars
 
 functionBlock :: Parser Global
 functionBlock = do
       skipSymbol' "FUNCTION_BLOCK"
       n <- ident
-      vs <- many $ try varDecl
+      vs <- many $ try funblockVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION_BLOCK"
       pure $ FunctionBlock n vs sts
@@ -44,7 +44,7 @@ function = do
       skipSymbol' "FUNCTION"
       n <- ident
       t <- declType
-      vs <- many $ try varDecl
+      vs <- many $ try funVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION"
       pure $ Function n t vs sts
@@ -53,7 +53,7 @@ program :: Parser Global
 program = do
       skipSymbol' "PROGRAM"
       n <- ident
-      vs <- many $ try varDecl
+      vs <- many $ try programVarDecl
       sts <- many stmt
       skipSymbol' "END_PROGRAM"
       pure $ Program n vs sts
@@ -61,17 +61,55 @@ program = do
 typeDef :: Parser Global
 typeDef = symbol' "TYPE" *> manyTill anySingle (symbol' "END_TYPE") $> TypeDef ""
 
-varGlobal :: Parser Global
-varGlobal = (symbol' "VAR_GLOBAL"    $> VarGlobal)
+globalVars :: Parser Global
+globalVars = GlobalVars <$> fileVarDecl
+
+var :: Parser VarDecl
+var = (symbol' "VAR"    $> Var)
+      <* space
       <* manyTill anySingle (symbol' "END_VAR")
 
-varDecl :: Parser VarDecl
-varDecl = (   symbol' "VAR_INPUT"    $> VarInput -- Order matters.
-          <|> symbol' "VAR_IN_OUT"   $> VarInOut
-          <|> symbol' "VAR_OUTPUT"   $> VarOutput
-          <|> symbol' "VAR_EXTERNAL" $> VarExternal
-          <|> symbol' "VAR"          $> Var)
+varInput :: Parser VarDecl
+varInput = (symbol' "VAR_INPUT"       $> VarInput)
+      <* space
       <* manyTill anySingle (symbol' "END_VAR")
+
+varOutput :: Parser VarDecl
+varOutput = (symbol' "VAR_OUTPUT"     $> VarOutput)
+      <* space
+      <* manyTill anySingle (symbol' "END_VAR")
+
+varInOut :: Parser VarDecl
+varInOut = (symbol' "VAR_IN_OUT"      $> VarInOut)
+      <* space
+      <* manyTill anySingle (symbol' "END_VAR")
+
+varExternal :: Parser VarDecl
+varExternal = (symbol' "VAR_EXTERNAL" $> VarExternal)
+      <* space
+      <* manyTill anySingle (symbol' "END_VAR")
+
+varGlobal :: Parser VarDecl
+varGlobal = (symbol' "VAR_GLOBAL"     $> VarGlobal)
+      <* space
+      <* manyTill anySingle (symbol' "END_VAR")
+
+varAccess :: Parser VarDecl
+varAccess = (symbol' "VAR_ACCESS"     $> VarAccess)
+      <* space
+      <* manyTill anySingle (symbol' "END_VAR")
+
+fileVarDecl :: Parser VarDecl
+fileVarDecl = try varGlobal <|> try varAccess
+
+funVarDecl :: Parser VarDecl
+funVarDecl = try varInput  <|> try var
+
+funblockVarDecl :: Parser VarDecl
+funblockVarDecl = funVarDecl <|> try varOutput <|> try varInOut <|> try varExternal
+
+programVarDecl :: Parser VarDecl
+programVarDecl = fileVarDecl <|> funblockVarDecl
 
 -- e.g., " : INT"
 declType :: Parser Type
@@ -87,7 +125,6 @@ stmt = try assignStmt <|> try invokeStmt
 assignStmt :: Parser Stmt
 assignStmt = Assign <$> lval <*> (colonEq *> expr <* semi)
 
--- TODO(chathhorn): (also other stmts)
 invokeStmt :: Parser Stmt
 invokeStmt = Invoke <$> ident <*> parens (commas arg) <* semi
 
