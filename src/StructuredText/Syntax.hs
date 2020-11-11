@@ -4,6 +4,7 @@ module StructuredText.Syntax
       , Type (..), VarDecl (..), Stmt (..)
       , Op (..), Arg (..), Elsif (..)
       , LVal (..), Lit (..), Labeled (..)
+      , TypedName (..), Retain (..)
       ) where
 
 import Data.Text (Text)
@@ -29,13 +30,19 @@ instance Pretty Global where
             Program f _ _         -> pretty ("PROGRAM" :: Text) <+> pretty f
             TypeDef f             -> pretty ("TYPE" :: Text) <+> pretty f
 
-data VarDecl = Var
-             | VarInput
-             | VarOutput
-             | VarInOut
-             | VarExternal
-             | VarGlobal
-             | VarAccess
+data TypedName = TypedName Text Type
+      deriving (Eq, Show)
+
+data Retain = None | Retain | NonRetain
+      deriving (Eq, Show)
+
+data VarDecl = Var         Retain [TypedName]
+             | VarInput    Retain [TypedName]
+             | VarOutput   Retain [TypedName]
+             | VarInOut    Retain [TypedName]
+             | VarExternal Retain [TypedName]
+             | VarGlobal   Retain [TypedName]
+             | VarAccess   Retain [TypedName]
       deriving (Eq, Show)
 
 data Arg = Arg Expr

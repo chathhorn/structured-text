@@ -34,7 +34,7 @@ functionBlock :: Parser Global
 functionBlock = do
       skipSymbol' "FUNCTION_BLOCK"
       n <- ident
-      vs <- many $ try funblockVarDecl
+      vs <- many functionBlockVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION_BLOCK"
       pure $ FunctionBlock n vs sts
@@ -44,7 +44,7 @@ function = do
       skipSymbol' "FUNCTION"
       n <- ident
       t <- declType
-      vs <- many $ try funVarDecl
+      vs <- many functionVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION"
       pure $ Function n t vs sts
@@ -53,7 +53,7 @@ program :: Parser Global
 program = do
       skipSymbol' "PROGRAM"
       n <- ident
-      vs <- many $ try programVarDecl
+      vs <- many programVarDecl
       sts <- many stmt
       skipSymbol' "END_PROGRAM"
       pure $ Program n vs sts
@@ -65,51 +65,64 @@ globalVars :: Parser Global
 globalVars = GlobalVars <$> fileVarDecl
 
 var :: Parser VarDecl
-var = (symbol' "VAR"    $> Var)
-      <* space
-      <* manyTill anySingle (symbol' "END_VAR")
+var = symbol' "VAR"
+      *> (Var <$> retain <*> (concat <$> some (try typedNames)))
+      <* symbol' "END_VAR"
 
 varInput :: Parser VarDecl
-varInput = (symbol' "VAR_INPUT"       $> VarInput)
-      <* space
-      <* manyTill anySingle (symbol' "END_VAR")
+varInput = symbol' "VAR_INPUT"
+      *> (VarInput <$> retain <*> (concat <$> some (try typedNames)))
+      <* symbol' "END_VAR"
 
 varOutput :: Parser VarDecl
-varOutput = (symbol' "VAR_OUTPUT"     $> VarOutput)
-      <* space
-      <* manyTill anySingle (symbol' "END_VAR")
+varOutput = symbol' "VAR_OUTPUT"
+      *> (VarOutput <$> retain <*> (concat <$> some (try typedNames)))
+      <* symbol' "END_VAR"
 
 varInOut :: Parser VarDecl
-varInOut = (symbol' "VAR_IN_OUT"      $> VarInOut)
-      <* space
-      <* manyTill anySingle (symbol' "END_VAR")
+varInOut = symbol' "VAR_IN_OUT"
+      *> (VarInOut <$> retain <*> (concat <$> some (try typedNames)))
+      <* symbol' "END_VAR"
 
 varExternal :: Parser VarDecl
-varExternal = (symbol' "VAR_EXTERNAL" $> VarExternal)
-      <* space
-      <* manyTill anySingle (symbol' "END_VAR")
+varExternal = symbol' "VAR_EXTERNAL"
+      *> (VarExternal <$> retain <*> (concat <$> some (try typedNames)))
+      <* symbol' "END_VAR"
 
 varGlobal :: Parser VarDecl
-varGlobal = (symbol' "VAR_GLOBAL"     $> VarGlobal)
-      <* space
-      <* manyTill anySingle (symbol' "END_VAR")
+varGlobal = symbol' "VAR_GLOBAL"
+      *> (VarGlobal <$> retain <*> (concat <$> some (try typedNames)))
+      <* symbol' "END_VAR"
 
 varAccess :: Parser VarDecl
-varAccess = (symbol' "VAR_ACCESS"     $> VarAccess)
-      <* space
-      <* manyTill anySingle (symbol' "END_VAR")
+varAccess = symbol' "VAR_ACCESS"
+      *> (VarAccess <$> retain <*> (concat <$> some (try typedNames)))
+      <* symbol' "END_VAR"
 
 fileVarDecl :: Parser VarDecl
 fileVarDecl = try varGlobal <|> try varAccess
 
-funVarDecl :: Parser VarDecl
-funVarDecl = try varInput  <|> try var
+functionVarDecl :: Parser VarDecl
+functionVarDecl = try varInput  <|> try var
 
-funblockVarDecl :: Parser VarDecl
-funblockVarDecl = funVarDecl <|> try varOutput <|> try varInOut <|> try varExternal
+functionBlockVarDecl :: Parser VarDecl
+functionBlockVarDecl = try varOutput <|> try varInOut <|> try varExternal
+      <|> try functionVarDecl
 
 programVarDecl :: Parser VarDecl
-programVarDecl = fileVarDecl <|> funblockVarDecl
+programVarDecl = try fileVarDecl <|> try functionBlockVarDecl
+
+typedNames :: Parser [TypedName]
+typedNames = do
+      xs <- commas ident
+      t <- declType
+      semi
+      pure $ map (flip TypedName t) xs
+
+retain :: Parser Retain
+retain = try (symbol' "RETAIN" $> Retain)
+      <|> try (symbol' "NON_RETAIN" $> NonRetain)
+      <|> pure None
 
 -- e.g., " : INT"
 declType :: Parser Type
@@ -283,16 +296,18 @@ qualIdent = QualId <$> ident <*> (symbol "." *> ident)
 
 typ :: Parser Type
 typ = ( symbol' "BOOL"  $> TBool  )
-        <|> ( symbol' "REAL"  $> TReal  ) <|> ( symbol' "LREAL" $> TLReal )
-        <|> ( symbol' "INT"   $> TInt   ) <|> ( symbol' "UINT"  $> TUInt  )
-        <|> ( symbol' "SINT"  $> TSInt  ) <|> ( symbol' "USINT" $> TUSInt )
-        <|> ( symbol' "DINT"  $> TDInt  ) <|> ( symbol' "UDINT" $> TUDInt )
-        <|> ( symbol' "LINT"  $> TLInt  ) <|> ( symbol' "ULINT" $> TULInt )
-        <|> ( symbol' "BYTE"  $> TByte  ) <|> ( symbol' "WORD"  $> TWord  )
-        <|> ( symbol' "DWORD" $> TDWord ) <|> ( symbol' "LWORD" $> TLWord )
-        <|> ( symbol' "TIME"  $> TTime  ) <|> ( symbol' "DATE"  $> TDate  )
-        <|> ( ( symbol' "TIME_OF_DAY"     <|>   symbol' "TOD")  $> TTimeOfDay )
-        <|> ( ( symbol' "DATE_AND_TYPE"   <|>   symbol' "DT" )  $> TDateTime  )
+        <|> ( symbol' "REAL"   $> TReal  ) <|> ( symbol' "LREAL" $> TLReal )
+        <|> ( symbol' "INT"    $> TInt   ) <|> ( symbol' "UINT"  $> TUInt  )
+        <|> ( symbol' "SINT"   $> TSInt  ) <|> ( symbol' "USINT" $> TUSInt )
+        <|> ( symbol' "DINT"   $> TDInt  ) <|> ( symbol' "UDINT" $> TUDInt )
+        <|> ( symbol' "LINT"   $> TLInt  ) <|> ( symbol' "ULINT" $> TULInt )
+        <|> ( symbol' "BYTE"   $> TByte  ) <|> ( symbol' "WORD"  $> TWord  )
+        <|> ( symbol' "DWORD"  $> TDWord ) <|> ( symbol' "LWORD" $> TLWord )
+        <|> ( symbol' "TIME"   $> TTime  ) <|> ( symbol' "DATE"  $> TDate  )
+        <|> ( symbol' "STRING" $> TTime  ) <|> ( symbol' "WSTRING"  $> TDate  )
+        <|> ( ( symbol' "TIME_OF_DAY"      <|>   symbol' "TOD")  $> TTimeOfDay )
+        <|> ( ( symbol' "DATE_AND_TYPE"    <|>   symbol' "DT" )  $> TDateTime  )
+        <|> ( TId <$> ident )
 
 -----------
 -- Lexer --

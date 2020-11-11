@@ -1,9 +1,9 @@
 FUNCTION SIMPLE_FUN : REAL
     VAR_INPUT
   		A, B : REAL ;
-      	C : REAL := 1.0;
+      	C : REAL ;
+  	     COUNT : INT ;
   	END_VAR
-  	VAR_IN_OUT COUNT : INT ; END_VAR
   	VAR COUNTP1 : INT ; END_VAR
   	
   	COUNTP1 := ADD(COUNT,1);
