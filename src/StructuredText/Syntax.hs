@@ -5,6 +5,7 @@ module StructuredText.Syntax
       , Op (..), Arg (..), Elsif (..)
       , LVal (..), Lit (..), Labeled (..)
       , TypedName (..), Retain (..)
+      , Location (..), Init (..)
       ) where
 
 import Data.Text (Text)
@@ -30,7 +31,14 @@ instance Pretty Global where
             Program f _ _         -> pretty ("PROGRAM" :: Text) <+> pretty f
             TypeDef f             -> pretty ("TYPE" :: Text) <+> pretty f
 
-data TypedName = TypedName Text Type
+data Init = SimpleInit Lit
+      deriving (Eq, Show)
+
+data TypedName = TypedName Text (Maybe Location) Type (Maybe Init)
+               | TypedLocation Location Type (Maybe Init)
+      deriving (Eq, Show)
+
+data Location = InputLoc Text | OutputLoc Text | MemoryLoc Text
       deriving (Eq, Show)
 
 data Retain = None | Retain | NonRetain

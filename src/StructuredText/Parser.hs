@@ -4,7 +4,7 @@ module StructuredText.Parser
     ) where
 
 import Control.Monad.Combinators.Expr ( makeExprParser, Operator (..) )
-import Data.Char ( isAscii, isAlpha, isAlphaNum )
+import Data.Char ( isAscii, isAlpha, isAlphaNum, isDigit )
 import Data.Text ( Text, singleton, pack )
 import Data.Functor ( ($>) )
 import Data.Void ( Void )
@@ -113,11 +113,39 @@ programVarDecl :: Parser VarDecl
 programVarDecl = try fileVarDecl <|> try functionBlockVarDecl
 
 typedNames :: Parser [TypedName]
-typedNames = do
+typedNames = try noLocNames
+      <|> try (pure <$> singleLocName)
+      <|> try (pure <$> typedLocation)
+
+noLocNames :: Parser [TypedName]
+noLocNames = do
       xs <- commas ident
       t <- declType
+      i <- maybeInit
       semi
-      pure $ map (flip TypedName t) xs
+      pure $ map (\ x -> TypedName x Nothing t i) xs
+
+singleLocName :: Parser TypedName
+singleLocName = do
+      x <- ident
+      symbol' "AT" $> ()
+      loc <- location
+      t <- declType
+      i <- maybeInit
+      semi
+      pure $ TypedName x (Just loc) t i
+
+typedLocation :: Parser TypedName
+typedLocation = do
+      symbol' "AT" $> ()
+      loc <- location
+      t <- declType
+      i <- maybeInit
+      semi
+      pure $ TypedLocation loc t i
+
+maybeInit :: Parser (Maybe Init)
+maybeInit = try (Just . SimpleInit <$> (colonEq *> lit)) <|> pure Nothing
 
 retain :: Parser Retain
 retain = try (symbol' "RETAIN" $> Retain)
@@ -404,6 +432,19 @@ ident = do
       xs <- takeWhileP (Just "legal identifier character") isIdChar
       space
       pure $ singleton x <> xs
+
+location :: Parser Location
+location =
+      (   try (InputLoc  <$> (symbol "%I" *> locAddr <* space))
+      <|> try (OutputLoc <$> (symbol "%Q" *> locAddr <* space))
+      <|> try (MemoryLoc <$> (symbol "%M" *> locAddr <* space))
+      )
+
+locAddr :: Parser Text
+locAddr = takeWhileP (Just "legal physical or logical variable location address character") isLocAddrChar
+
+isLocAddrChar :: Char -> Bool
+isLocAddrChar c = c `elem` ['X', 'B', 'W', 'D', 'L', '.'] || isDigit c
 
 isIdChar :: Char -> Bool
 isIdChar c = c == '_' || isAscii c && isAlphaNum c
