@@ -66,37 +66,37 @@ globalVars = GlobalVars <$> fileVarDecl
 
 var :: Parser VarDecl
 var = symbol' "VAR"
-      *> (Var <$> retain <*> (concat <$> some (try typedNames)))
+      *> (Var <$> qualifier <*> (concat <$> some (try typedNames)))
       <* symbol' "END_VAR"
 
 varInput :: Parser VarDecl
 varInput = symbol' "VAR_INPUT"
-      *> (VarInput <$> retain <*> (concat <$> some (try typedNames)))
+      *> (VarInput <$> qualifier <*> (concat <$> some (try typedNames)))
       <* symbol' "END_VAR"
 
 varOutput :: Parser VarDecl
 varOutput = symbol' "VAR_OUTPUT"
-      *> (VarOutput <$> retain <*> (concat <$> some (try typedNames)))
+      *> (VarOutput <$> qualifier <*> (concat <$> some (try typedNames)))
       <* symbol' "END_VAR"
 
 varInOut :: Parser VarDecl
 varInOut = symbol' "VAR_IN_OUT"
-      *> (VarInOut <$> retain <*> (concat <$> some (try typedNames)))
+      *> (VarInOut <$> qualifier <*> (concat <$> some (try typedNames)))
       <* symbol' "END_VAR"
 
 varExternal :: Parser VarDecl
 varExternal = symbol' "VAR_EXTERNAL"
-      *> (VarExternal <$> retain <*> (concat <$> some (try typedNames)))
+      *> (VarExternal <$> qualifier <*> (concat <$> some (try typedNames)))
       <* symbol' "END_VAR"
 
 varGlobal :: Parser VarDecl
 varGlobal = symbol' "VAR_GLOBAL"
-      *> (VarGlobal <$> retain <*> (concat <$> some (try typedNames)))
+      *> (VarGlobal <$> qualifier <*> (concat <$> some (try typedNames)))
       <* symbol' "END_VAR"
 
 varAccess :: Parser VarDecl
 varAccess = symbol' "VAR_ACCESS"
-      *> (VarAccess <$> retain <*> (concat <$> some (try typedNames)))
+      *> (VarAccess <$> qualifier <*> (concat <$> some (try typedNames)))
       <* symbol' "END_VAR"
 
 fileVarDecl :: Parser VarDecl
@@ -145,11 +145,24 @@ typedLocation = do
       pure $ TypedLocation loc t i
 
 maybeInit :: Parser (Maybe Init)
-maybeInit = try (Just . SimpleInit <$> (colonEq *> lit)) <|> pure Nothing
+maybeInit = try (Just <$> initializer) <|> pure Nothing
 
-retain :: Parser Retain
-retain = try (symbol' "RETAIN" $> Retain)
+initializer :: Parser Init
+initializer = try simpleInit <|> try compoundInit
+
+simpleInit :: Parser Init
+simpleInit = colonEq *> (SimpleInit <$> lit)
+
+compoundInit :: Parser Init
+compoundInit = colonEq *> (CompoundInit <$> parens (commas fieldInit))
+
+fieldInit :: Parser FieldInit
+fieldInit = FieldInit <$> ident <*> initializer
+
+qualifier :: Parser Qualifier
+qualifier = try (symbol' "RETAIN" $> Retain)
       <|> try (symbol' "NON_RETAIN" $> NonRetain)
+      <|> try (symbol' "CONSTANT" $> Constant)
       <|> pure None
 
 -- e.g., " : INT"
@@ -322,20 +335,25 @@ prefix name f = Prefix  (f <$ symbol' name)
 qualIdent :: Parser LVal
 qualIdent = QualId <$> ident <*> (symbol "." *> ident)
 
+notIdent' :: Text -> Parser ()
+notIdent' s = symbol' s *> notFollowedBy ident
+
 typ :: Parser Type
-typ = ( symbol' "BOOL"  $> TBool  )
-        <|> ( symbol' "REAL"   $> TReal  ) <|> ( symbol' "LREAL" $> TLReal )
-        <|> ( symbol' "INT"    $> TInt   ) <|> ( symbol' "UINT"  $> TUInt  )
-        <|> ( symbol' "SINT"   $> TSInt  ) <|> ( symbol' "USINT" $> TUSInt )
-        <|> ( symbol' "DINT"   $> TDInt  ) <|> ( symbol' "UDINT" $> TUDInt )
-        <|> ( symbol' "LINT"   $> TLInt  ) <|> ( symbol' "ULINT" $> TULInt )
-        <|> ( symbol' "BYTE"   $> TByte  ) <|> ( symbol' "WORD"  $> TWord  )
-        <|> ( symbol' "DWORD"  $> TDWord ) <|> ( symbol' "LWORD" $> TLWord )
-        <|> ( symbol' "TIME"   $> TTime  ) <|> ( symbol' "DATE"  $> TDate  )
-        <|> ( symbol' "STRING" $> TTime  ) <|> ( symbol' "WSTRING"  $> TDate  )
-        <|> ( ( symbol' "TIME_OF_DAY"      <|>   symbol' "TOD")  $> TTimeOfDay )
-        <|> ( ( symbol' "DATE_AND_TYPE"    <|>   symbol' "DT" )  $> TDateTime  )
-        <|> ( TId <$> ident )
+typ = try ( (symbol' "BOOL"  *> symbol' "R_EDGE") $> TBoolREdge )
+  <|> try ( (symbol' "BOOL" *> symbol' "F_EDGE")  $> TBoolFEdge )
+  <|> try ( notIdent' "BOOL"   $> TBool )
+  <|> try ( notIdent' "REAL"   $> TReal  ) <|> try ( notIdent' "LREAL" $> TLReal )
+  <|> try ( notIdent' "INT"    $> TInt   ) <|> try ( notIdent' "UINT"  $> TUInt  )
+  <|> try ( notIdent' "SINT"   $> TSInt  ) <|> try ( notIdent' "USINT" $> TUSInt )
+  <|> try ( notIdent' "DINT"   $> TDInt  ) <|> try ( notIdent' "UDINT" $> TUDInt )
+  <|> try ( notIdent' "LINT"   $> TLInt  ) <|> try ( notIdent' "ULINT" $> TULInt )
+  <|> try ( notIdent' "BYTE"   $> TByte  ) <|> try ( notIdent' "WORD"  $> TWord  )
+  <|> try ( notIdent' "DWORD"  $> TDWord ) <|> try ( notIdent' "LWORD" $> TLWord )
+  <|> try ( notIdent' "TIME"   $> TTime  ) <|> try ( notIdent' "DATE"  $> TDate  )
+  <|> try ( notIdent' "STRING" $> TTime  ) <|> try ( notIdent' "WSTRING"  $> TDate  )
+  <|> try ( ( notIdent' "TIME_OF_DAY"      <|>   notIdent' "TOD")  $> TTimeOfDay )
+  <|> try ( ( notIdent' "DATE_AND_TYPE"    <|>   notIdent' "DT" )  $> TDateTime  )
+  <|> ( TId <$> ident )
 
 -----------
 -- Lexer --
@@ -444,7 +462,7 @@ locAddr :: Parser Text
 locAddr = takeWhileP (Just "legal physical or logical variable location address character") isLocAddrChar
 
 isLocAddrChar :: Char -> Bool
-isLocAddrChar c = c `elem` ['X', 'B', 'W', 'D', 'L', '.'] || isDigit c
+isLocAddrChar c = c `elem` ['X', 'B', 'W', 'D', 'L', '*', '.'] || isDigit c
 
 isIdChar :: Char -> Bool
 isIdChar c = c == '_' || isAscii c && isAlphaNum c

@@ -4,8 +4,8 @@ module StructuredText.Syntax
       , Type (..), VarDecl (..), Stmt (..)
       , Op (..), Arg (..), Elsif (..)
       , LVal (..), Lit (..), Labeled (..)
-      , TypedName (..), Retain (..)
-      , Location (..), Init (..)
+      , TypedName (..), Qualifier (..)
+      , Location (..), Init (..), FieldInit (..)
       ) where
 
 import Data.Text (Text)
@@ -31,7 +31,10 @@ instance Pretty Global where
             Program f _ _         -> pretty ("PROGRAM" :: Text) <+> pretty f
             TypeDef f             -> pretty ("TYPE" :: Text) <+> pretty f
 
-data Init = SimpleInit Lit
+data FieldInit = FieldInit Text Init
+      deriving (Eq, Show)
+
+data Init = SimpleInit Lit | CompoundInit [FieldInit]
       deriving (Eq, Show)
 
 data TypedName = TypedName Text (Maybe Location) Type (Maybe Init)
@@ -41,16 +44,16 @@ data TypedName = TypedName Text (Maybe Location) Type (Maybe Init)
 data Location = InputLoc Text | OutputLoc Text | MemoryLoc Text
       deriving (Eq, Show)
 
-data Retain = None | Retain | NonRetain
+data Qualifier = None | Retain | NonRetain | Constant
       deriving (Eq, Show)
 
-data VarDecl = Var         Retain [TypedName]
-             | VarInput    Retain [TypedName]
-             | VarOutput   Retain [TypedName]
-             | VarInOut    Retain [TypedName]
-             | VarExternal Retain [TypedName]
-             | VarGlobal   Retain [TypedName]
-             | VarAccess   Retain [TypedName]
+data VarDecl = Var         Qualifier [TypedName]
+             | VarInput    Qualifier [TypedName]
+             | VarOutput   Qualifier [TypedName]
+             | VarInOut    Qualifier [TypedName]
+             | VarExternal Qualifier [TypedName]
+             | VarGlobal   Qualifier [TypedName]
+             | VarAccess   Qualifier [TypedName]
       deriving (Eq, Show)
 
 data Arg = Arg Expr
@@ -101,7 +104,8 @@ data Expr = LV LVal
          | Lit Lit
       deriving (Eq, Show)
 
-data Type = TBool   | TId Text
+data Type = TBool   | TBoolREdge | TBoolFEdge
+          | TId Text
           | TReal   | TLReal
           | TInt    | TUInt | TSInt | TUSInt | TDInt | TUDInt | TLInt | TULInt
           | TByte   | TWord | TDWord | TLWord
