@@ -434,7 +434,7 @@ true = True <$
       )
 
 false :: Parser Bool
-false = True <$
+false = False <$
       ( symbol' "FALSE"
       <|> (symbol' "BOOL" <* hash <* symbol' "FALSE")
       <|> (symbol' "BOOL" <* hash <* zero)

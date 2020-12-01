@@ -30,6 +30,7 @@ instance Pretty Global where
             Function f _ _ _      -> pretty ("FUNCTION" :: Text) <+> pretty f
             Program f _ _         -> pretty ("PROGRAM" :: Text) <+> pretty f
             TypeDef f             -> pretty ("TYPE" :: Text) <+> pretty f
+            GlobalVars _          -> pretty ("VAR_GLOBAL" :: Text)
 
 data FieldInit = FieldInit Text Init
       deriving (Eq, Show)
@@ -69,13 +70,16 @@ data Labeled = Label Expr [Stmt]
              | LabelRange Expr Expr [Stmt]
       deriving (Eq, Show)
 
-data Stmt = Assign LVal Expr | Invoke Text [Arg] | Return
+data Stmt = Assign LVal Expr
+          | Invoke Text [Arg]
+          | Return
           | If Expr [Stmt] [Elsif] [Stmt]
           | Case Expr [Labeled] [Stmt]
           | For Text Expr Expr (Maybe Expr) [Stmt]
           | While Expr [Stmt]
           | Repeat [Stmt] Expr
-          | Exit | Empty
+          | Exit
+          | Empty
       deriving (Eq, Show)
 
 data Op = Plus | Minus | Mult | Div | Mod | Exp

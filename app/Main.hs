@@ -2,38 +2,73 @@
 module Main where
 
 import Prelude hiding (readFile)
-import Control.Monad (unless)
-import System.Exit (exitFailure)
+import Control.Monad (when, forM_)
+import Data.Functor (($>))
+import System.Exit (exitFailure, exitSuccess)
+import Data.Text (unpack)
 import Data.Text.IO (readFile)
 import System.Environment (getArgs)
 import Text.Megaparsec (parse, errorBundlePretty)
-import System.Console.GetOpt (getOpt, usageInfo, OptDescr (..), ArgOrder (..))
+import System.Console.GetOpt (getOpt, usageInfo, OptDescr (..), ArgOrder (..), ArgDescr (..))
 import System.IO (hPutStr, hPutStrLn, stderr)
+import StructuredText.Syntax (STxt)
 import StructuredText.Parser (top)
 
-data Flag = NoFlag
+import StructuredText.ToPython (toPython)
+import qualified Language.Python.Common.AST as Py
+import qualified Language.Python.Common.Pretty as Py
+import qualified Language.Python.Version3.Parser as Py
+
+import Language.Python.Common.PrettyAST ()
+import Language.Python.Common.PrettyParseError ()
+
+data Flag = NoFlag | FlagP | FlagParsePy
       deriving (Eq, Show)
 
 options :: [OptDescr Flag]
-options = []
+options =
+      [ Option ['p'] ["parse"]        (NoArg FlagP)       "Print the parsed AST from the ST file arguments."
+      , Option []    ["parse-python"] (NoArg FlagParsePy) "Print the parsed AST from the python file arguments, then exit."
+      ]
 
 exitUsage :: IO ()
-exitUsage = hPutStr stderr (usageInfo "Usage: st-parse [OPTION...] <filename.rw>" options) >> exitFailure
+exitUsage = hPutStr stderr (usageInfo "Usage: stxt [OPTION...] <files>" options) >> exitFailure
 
-parseFile :: FilePath -> IO ()
-parseFile f = do
+parsePy :: FilePath -> IO (Py.Module ())
+parsePy f = do
+      txt <- readFile f
+      case Py.parseModule (unpack txt) f of
+            Left e  -> do
+                  putStrLn $ "Error: " ++ Py.prettyText e
+                  exitFailure
+            Right s -> return $ fst s $> ()
+
+parseST :: FilePath -> IO STxt
+parseST f = do
       txt <- readFile f
       case parse top f txt of
-            Left e  -> putStrLn $ "Error: " ++ errorBundlePretty e
-            Right s -> print s
+            Left e  -> do
+                  putStrLn $ "Error: " ++ errorBundlePretty e
+                  exitFailure
+            Right s -> return s
 
 main :: IO ()
 main = do
-      (_, filenames, errs) <-  getOpt Permute options <$> getArgs
+      (flags, filenames, errs) <-  getOpt Permute options <$> getArgs
 
-      unless (null errs) $ do
+      when (not $ null errs) $ do
             mapM_ (hPutStrLn stderr) errs
             exitUsage
 
-      mapM_ parseFile filenames
+      when (FlagParsePy `elem` flags) $ do
+            forM_ filenames $ \ f -> do
+                  py <- parsePy f
+                  print py
+            exitSuccess
+
+      forM_ filenames $ \ f -> do
+            st <- parseST f
+            when (FlagP `elem` flags) $
+                  print st
+            putStrLn $ Py.prettyText $ toPython st
 
