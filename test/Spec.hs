@@ -20,7 +20,7 @@ main = do
       defaultMain $ testGroup "Tests" (concat tests)
 
 spec :: FilePath -> Text -> Spec
-spec fp = describe ("parse_" ++ takeBaseName fp)
+spec fp = describe (takeBaseName fp)
       . it ("should parse the file " ++ takeFileName fp)
       . (parse top fp `shouldSucceedOn`)
 
