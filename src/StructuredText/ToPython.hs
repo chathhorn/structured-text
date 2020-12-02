@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 module StructuredText.ToPython ( toPython ) where
 
 import Data.Maybe (catMaybes)

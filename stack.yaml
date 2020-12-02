@@ -42,6 +42,10 @@ packages:
 extra-deps:
 - prettyprinter-1.7.0
 - language-python-0.5.8
+- byline-1.1.0.1
+- haskeline-0.8.1.0
+- optparse-applicative-0.16.1.0
+- terminfo-hs-0.2.1.1
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module StructuredText.Parser
     ( top, Parser
     ) where

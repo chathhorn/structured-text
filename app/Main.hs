@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Prelude hiding (readFile)
@@ -11,10 +10,13 @@ import System.Environment (getArgs)
 import Text.Megaparsec (parse, errorBundlePretty)
 import System.Console.GetOpt (getOpt, usageInfo, OptDescr (..), ArgOrder (..), ArgDescr (..))
 import System.IO (hPutStr, hPutStrLn, stderr)
+
 import StructuredText.Syntax (STxt)
 import StructuredText.Parser (top)
-
 import StructuredText.ToPython (toPython)
+
+import Shell (shell)
+
 import qualified Language.Python.Common.AST as Py
 import qualified Language.Python.Common.Pretty as Py
 import qualified Language.Python.Version3.Parser as Py
@@ -22,13 +24,14 @@ import qualified Language.Python.Version3.Parser as Py
 import Language.Python.Common.PrettyAST ()
 import Language.Python.Common.PrettyParseError ()
 
-data Flag = NoFlag | FlagP | FlagParsePy
+data Flag = NoFlag | FlagP | FlagParsePy | FlagInteractive
       deriving (Eq, Show)
 
 options :: [OptDescr Flag]
 options =
-      [ Option ['p'] ["parse"]        (NoArg FlagP)       "Print the parsed AST from the ST file arguments."
-      , Option []    ["parse-python"] (NoArg FlagParsePy) "Print the parsed AST from the python file arguments, then exit."
+      [ Option ['p'] ["parse"]        (NoArg FlagP)           "Print the parsed AST from the ST file arguments."
+      , Option []    ["parse-python"] (NoArg FlagParsePy)     "Print the parsed AST from the python file arguments, then exit."
+      , Option ['i'] ["interactive"]  (NoArg FlagInteractive) "Enter interactive mode instead of translating argument files."
       ]
 
 exitUsage :: IO ()
@@ -71,4 +74,5 @@ main = do
             when (FlagP `elem` flags) $
                   print st
             putStrLn $ Py.prettyText $ toPython st
+      when (FlagInteractive `elem` flags) shell
 

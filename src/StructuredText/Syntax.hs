@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings, LambdaCase #-}
 module StructuredText.Syntax
       ( STxt (..), Global (..), Expr (..)
       , Type (..), VarDecl (..), Stmt (..)
