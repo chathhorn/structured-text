@@ -28,6 +28,7 @@ dependencies:
 default-extensions:
 - LambdaCase
 - OverloadedStrings
+- FlexibleContexts
 
 ghc-options:
 - -Wall
@@ -36,6 +37,7 @@ library:
   source-dirs: src
   dependencies:
   - parser-combinators >= 1.2 && < 1.3
+  - containers >= 0.6.2.1 && < 0.6.3
 
 executables:
   stxt:
