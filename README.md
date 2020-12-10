@@ -4,32 +4,32 @@ Tools for the IEC 61131-3 structured text (ST) language. See: https://en.wikiped
 # Build and install (on Ubuntu 20.04)
 
   1. Install the `haskell-stack` package:
-  ```shell
-  $ sudo apt install haskell-stack
-  ```
+     ```shell
+     $ sudo apt install haskell-stack
+     ```
 
   2. Clone this repo:
-  ```shell
-  $ git clone git@code.ornl.gov:defcon-scada/structured-text.git
-  ```
+     ```shell
+     $ git clone git@code.ornl.gov:defcon-scada/structured-text.git
+     ```
 
   3. Enter the repo:
-  ```shell
-  $ cd structured-text
-  ```
+     ```shell
+     $ cd structured-text
+     ```
 
   4. Build and install:
-  ```shell
-  $ stack install
-  ```
-  This step will take a while the first time, as it'll install Haskell and
-  all the build dependencies as well.
+     ```shell
+     $ stack install
+     ```
+     This step will take a while the first time, as it'll install Haskell and
+     all the build dependencies as well.
 
   5. Add `stack`'s default executable deployment directory to `$PATH`:
-  ```shell
-  $ export PATH=$HOME/.local/bin:$PATH
-  ```
-  Also consider adding this to `~/.bashrc`.
+     ```shell
+     $ export PATH=$HOME/.local/bin:$PATH
+     ```
+     Also consider adding this to `~/.bashrc`.
 
 # Testing
 
