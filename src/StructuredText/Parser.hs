@@ -2,6 +2,7 @@ module StructuredText.Parser
     ( top, Parser
     ) where
 
+import Control.Monad ( void )
 import Control.Monad.Combinators.Expr ( makeExprParser, Operator (..) )
 import Data.Char ( isAscii, isAlpha, isAlphaNum, isDigit )
 import Data.Text ( Text, singleton, pack )
@@ -17,10 +18,12 @@ import StructuredText.Syntax
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
 
+import qualified StructuredText.LTL as LTL
+
 type Parser = Parsec Void Text
 
 top :: Parser STxt
-top = STxt <$> (space *> some global)
+top = STxt <$> (space *> some global) -- TODO: initial space
 
 global :: Parser Global
 global = try functionBlock
@@ -28,6 +31,9 @@ global = try functionBlock
       <|> try program
       <|> try typeDef
       <|> try globalVars
+
+ltl :: Parser (LTL.LTL Expr)
+ltl = (symbol' "//" *> symbol' "LTL" *> symbol' ":" *> LTL.parseLtl expr)
 
 functionBlock :: Parser Global
 functionBlock = do
@@ -40,13 +46,14 @@ functionBlock = do
 
 function :: Parser Global
 function = do
+      annot <- many ltl
       skipSymbol' "FUNCTION"
       n <- ident
       t <- declType
       vs <- many functionVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION"
-      pure $ Function n t vs sts
+      pure $ Function n annot t vs sts
 
 program :: Parser Global
 program = do
@@ -250,7 +257,7 @@ repeatStmt = Repeat
       <?> "REPEAT statement"
 
 exitStmt :: Parser Stmt
-exitStmt = symbol' "EXIT" *> semi $> Exit <?> "EXIT statement"
+exitStmt = Exit <$ (symbol' "EXIT" *> semi) <?> "EXIT statement"
 
 emptyStmt :: Parser Stmt
 emptyStmt = symbol ";" $> Empty <?> "empty statement"
@@ -358,8 +365,9 @@ typ = try ( (symbol' "BOOL"  *> symbol' "R_EDGE") $> TBoolREdge )
 -- Lexer --
 -----------
 
+-- TODO(chathhorn): move LTL out of comments.
 skipLineComment :: Parser ()
-skipLineComment = L.skipLineComment "//"
+skipLineComment =  try (symbol "//" *> notFollowedBy (symbol' "LTL" *> symbol ":")) *> void (takeWhileP (Just "character") (/= '\n'))
 
 skipBlockComment :: Parser ()
 skipBlockComment = try (L.skipBlockComment "(*" "*)") <|> try (L.skipBlockComment "/*" "*/")

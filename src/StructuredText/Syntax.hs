@@ -9,6 +9,7 @@ module StructuredText.Syntax
 
 import Data.Text (Text)
 import Prettyprinter ((<+>), Pretty (..))
+import qualified StructuredText.LTL as LTL
 
 data STxt = STxt [Global]
       deriving (Eq, Show)
@@ -17,7 +18,7 @@ instance Pretty STxt where
       pretty (STxt gs) = pretty gs
 
 data Global = FunctionBlock Text [VarDecl] [Stmt]
-            | Function Text Type [VarDecl] [Stmt]
+            | Function Text [LTL.LTL Expr] Type [VarDecl] [Stmt]
             | Program Text [VarDecl] [Stmt]
             | TypeDef Text
             | GlobalVars VarDecl
@@ -26,7 +27,7 @@ data Global = FunctionBlock Text [VarDecl] [Stmt]
 instance Pretty Global where
       pretty = \ case
             FunctionBlock f _ _   -> pretty ("FUNCTION_BLOCK" :: Text) <+> pretty f
-            Function f _ _ _      -> pretty ("FUNCTION" :: Text) <+> pretty f
+            Function f _ _ _ _    -> pretty ("FUNCTION" :: Text) <+> pretty f
             Program f _ _         -> pretty ("PROGRAM" :: Text) <+> pretty f
             TypeDef f             -> pretty ("TYPE" :: Text) <+> pretty f
             GlobalVars _          -> pretty ("VAR_GLOBAL" :: Text)
@@ -79,6 +80,7 @@ data Stmt = Assign LVal Expr
           | Repeat [Stmt] Expr
           | Exit
           | Empty
+          | LTL (LTL.LTL Expr)
       deriving (Eq, Show)
 
 data Op = Plus | Minus | Mult | Div | Mod | Exp
@@ -115,4 +117,3 @@ data Type = TBool   | TBoolREdge | TBoolFEdge
           | TTime   | TDate | TTimeOfDay | TDateTime
           | TString | TWString
       deriving (Eq, Show)
-

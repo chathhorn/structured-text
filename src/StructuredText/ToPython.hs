@@ -1,7 +1,7 @@
 module StructuredText.ToPython ( toPython ) where
 
 import Data.Maybe (catMaybes)
-import Data.Text (Text, unpack)
+import Data.Text (Text, unpack, pack, append)
 import Control.Monad.Trans.State.Strict (State, evalState, modify, gets)
 import StructuredText.Syntax
 import Text.Casing (quietSnake)
@@ -19,15 +19,20 @@ toPython :: STxt -> Py.Module ()
 toPython = flip evalState [] . transSTxt
 
 transSTxt :: STxt -> M (Py.Module ())
-transSTxt (STxt gs) = Py.Module <$> mapM transGlobal gs
+transSTxt (STxt gs) = Py.Module <$> (concat <$> mapM transGlobal (concatMap expandLTL gs))
 
-transGlobal :: Global -> M (Py.Statement ())
+expandLTL :: Global -> [Global]
+expandLTL = \ case
+      Function x (ltl : ltls) t ds body -> Function ("ltl" `append` x) [] t ds [LTL ltl] : [Function x ltls t ds body]
+      g                                 -> [g]
+
+transGlobal :: Global -> M [Py.Statement ()]
 transGlobal = \ case
-      FunctionBlock x ds body -> Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ()
-      Function x _ ds body    -> Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> (putFId x *> mapM transStmt body) <*> pure ()
-      Program x ds body       -> Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ()
-      TypeDef {}              -> error "transGlobal TypeDef: unimplemented"
-      GlobalVars {}           -> error "transGlobal GlobalVars: unimplemented"
+      FunctionBlock x ds body         -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
+      Function x [] _ ds body         -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> (putFId x *> mapM transStmt body) <*> pure ())
+      Program x ds body               -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
+      TypeDef {}                      -> error "transGlobal TypeDef: unimplemented"
+      GlobalVars {}                   -> error "transGlobal GlobalVars: unimplemented"
 
 transId :: Text -> M (Py.Ident ())
 transId x = pure $ Py.Ident (quietSnake $ unpack x) ()
@@ -84,6 +89,7 @@ transStmt = \ case
             c' <- transExpr c
             body' <- mapM transStmt body
             pure $ Py.While (Py.Bool True ()) (body' ++ [Py.Conditional [(c', [Py.Break ()])] [] ()]) [] ()
+      LTL ltl            -> pure $ Py.StmtExpr (Py.Strings ["# " , show ltl] ()) ()
       Exit               -> Py.Return <$> pure Nothing <*> pure () -- TODO: how would it be different from return?
       Empty              -> Py.Pass <$> pure ()
 
