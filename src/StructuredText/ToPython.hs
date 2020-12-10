@@ -23,7 +23,7 @@ transSTxt (STxt gs) = Py.Module <$> (concat <$> mapM transGlobal (concatMap expa
 
 expandLTL :: Global -> [Global]
 expandLTL = \ case
-      Function x (ltl : ltls) t ds body -> Function ("ltl" `append` x) [] t ds [LTL ltl] : [Function x ltls t ds body]
+      Function x (ltl : ltls) t ds body -> Function ("ltl" `append` x) [] t ds [LTL ltl, Empty] : [Function x ltls t ds body]
       g                                 -> [g]
 
 transGlobal :: Global -> M [Py.Statement ()]

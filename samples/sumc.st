@@ -11,5 +11,3 @@ PROGRAM Sumc
 	END_WHILE;
 END_PROGRAM
 
-
-// krun -d build --ltlmc "[]Ltl ( L ->Ltl eqToSum(Sumc:::s, Sumc:::i))" tests\sumc.st

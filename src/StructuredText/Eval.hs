@@ -71,7 +71,6 @@ rCall = undefined
 
 rBinOp :: MonadError STError m => Op -> Result -> Result -> m Result
 rBinOp Plus (RInt x) (RInt y) = pure $ RInt $ x + y
-rBinOp Plus (RInt x) (RInt y) = pure $ RInt $ x + y
 
 rNegate :: MonadError STError m => Result -> m Result
 rNegate = \ case

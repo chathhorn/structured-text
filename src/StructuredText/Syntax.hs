@@ -88,8 +88,8 @@ data Op = Plus | Minus | Mult | Div | Mod | Exp
       deriving (Eq, Show)
 
 data LVal = Id Text
-      | QualId Text Text
-      | Index Text Expr
+          | QualId Text Text
+          | Index Text Expr
       deriving (Eq, Show)
 
 data Lit = Bool Bool
@@ -101,12 +101,12 @@ data Lit = Bool Bool
       deriving (Eq, Show)
 
 data Expr = LV LVal
-         | BinOp Op Expr Expr
-         | Negate Expr
-         | Not Expr
-         | AddrOf Expr
-         | Call Text [Arg]
-         | Lit Lit
+          | BinOp Op Expr Expr
+          | Negate Expr
+          | Not Expr
+          | AddrOf Expr
+          | Call Text [Arg]
+          | Lit Lit
       deriving (Eq, Show)
 
 data Type = TBool   | TBoolREdge | TBoolFEdge
