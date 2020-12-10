@@ -7,24 +7,30 @@ Tools for the IEC 61131-3 structured text (ST) language. See: https://en.wikiped
   ```shell
   $ sudo apt install haskell-stack
   ```
+
   2. Clone this repo:
   ```shell
   $ git clone git@code.ornl.gov:defcon-scada/structured-text.git
   ```
+
   3. Enter the repo:
   ```shell
   $ cd structured-text
   ```
-  4. This step will take a while the first time, as it'll install Haskell and
-     all the build dependencies as well. Build and install:
+
+  4. Build and install:
   ```shell
   $ stack install
   ```
-  5. Add `stack`'s default executable deployment directory to `$PATH` (also
-     consider adding this `~/.bashrc` to persist it across sessions):
+  This step will take a while the first time, as it'll install Haskell and
+  all the build dependencies as well.
+
+  5. Add `stack`'s default executable deployment directory to `$PATH`:
   ```shell
   $ export PATH=$HOME/.local/bin:$PATH
   ```
+  Also consider adding this to `~/.bashrc`.
+
 # Testing
 
 To run the unit tests:
