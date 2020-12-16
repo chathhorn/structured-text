@@ -1,49 +1,99 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 module Shell ( shell ) where
 
+import Prelude hiding (readFile, concat)
 import Byline
 import Byline.Shell
-import Data.Text (Text)
+import Data.Text (Text, concat, pack, unpack)
+import Data.Text.IO (readFile)
 import Control.Monad (forever, void)
 import Control.Monad.Trans.State.Strict (evalStateT)
 import Control.Monad.State.Class (MonadState (..), modify')
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import System.Exit (exitSuccess, exitFailure)
+import Control.Exception (try, IOException (..))
 import qualified Data.Text as Text
 import qualified Options.Applicative as O
+import Text.Megaparsec (parse, parseMaybe, errorBundlePretty)
+
+import StructuredText.Syntax (STxt)
+import StructuredText.Parser (top, expr)
+import StructuredText.ToPython (toPython)
+import StructuredText.Eval (eval, evalExpr)
+
+import qualified Language.Python.Common.AST as Py
+import qualified Language.Python.Common.Pretty as Py
+import qualified Language.Python.Version3.Parser as Py
+import Language.Python.Common.PrettyAST ()
+import Language.Python.Common.PrettyParseError ()
 
 data Command = Help
-  | Echo [Text]
-  | SetPrompt Text
+             | Quit
+             | Load FilePath
+             | Parse FilePath
+             | ParsePython FilePath
+             | ToPython FilePath
+             | STExpr Text
 
 parser :: O.Parser Command
 parser = O.hsubparser $ mconcat
-      [ O.command "help" (O.info (pure Help) $ O.progDesc "This message")
-      , O.command "echo" (O.info echoP $ O.progDesc "Print all arguments")
-      , O.command "set-prompt" (O.info promptP $ O.progDesc "Change the prompt")
+      [ O.command "help"           (O.info (pure Help)  $ O.progDesc "This message")
+      , O.command "load"           (O.info loadP        $ O.progDesc "Load and evaluate a structured text file")
+      , O.command "parse"          (O.info parseP       $ O.progDesc "Parse a structured text file")
+      , O.command "parse-python"   (O.info parsePythonP $ O.progDesc "Parse a python file")
+      , O.command "to-python"      (O.info toPythonP    $ O.progDesc "Translate an ST file to Python")
+      , O.command "quit"           (O.info (pure Quit)  $ O.progDesc "Quit")
+      , O.command "eval"           (O.info exprP        $ O.progDesc "Evaluate ST expression")
       ]
-      where echoP = Echo <$> O.many ( O.strArgument $ mconcat [ O.metavar "STR", O.help "A string to print" ])
-            promptP = SetPrompt <$> O.strArgument ( mconcat [ O.metavar "STR", O.help "Set the prompt to STR" ])
+      where loadP        = Load        <$> O.strArgument (mconcat [O.metavar "FILE", O.help "Structured text file to load" ])
+            parseP       = Parse       <$> O.strArgument (mconcat [O.metavar "FILE", O.help "Structured text file to parse" ])
+            parsePythonP = ParsePython <$> O.strArgument (mconcat [O.metavar "FILE", O.help "Python file to parse" ])
+            toPythonP    = ToPython    <$> O.strArgument (mconcat [O.metavar "FILE", O.help "ST file to translate into Python" ])
+            exprP        = STExpr      <$> O.strArgument (mconcat [O.metavar "EXPR", O.help "ST expression" ])
 
-dispatch :: (MonadByline m, MonadState (Shell Command) m) => Command -> m ()
+dispatch :: (MonadByline m, MonadState (Shell Command) m, MonadIO m) => Command -> m ()
 dispatch = \ case
-      Help -> do
-            shell' <- get
-            shellHelp shell'
-      Echo ts ->
-            sayLn (text $ Text.intercalate " " ts)
-      SetPrompt prompt ->
-            modify' (\s -> s {shellPrompt = text prompt})
+      Help -> get >>= shellHelp
+      Load f -> (liftIO $ try $ readFile f) >>= \ case
+            Right txt -> case parse top f txt of
+                  Right s -> case eval s of
+                        Just r  -> sayLn $ text $ pack $ show r
+                        Nothing -> sayLn $ text "Eval failed"
+                  Left e  -> sayLn $ text $ "Error: " <> (pack $ errorBundlePretty e)
+            Left (e :: IOException) -> sayLn $ text $ "Error: " <> (pack $ show e)
+      Parse f -> (liftIO $ try $ readFile f) >>= \ case
+            Right txt -> case parse top f txt of
+                  Right s -> sayLn $ text $ pack $ show s
+                  Left e  -> sayLn $ text $ "Error: " <> (pack $ errorBundlePretty e)
+            Left (e :: IOException) -> sayLn $ text $ "Error: " <> (pack $ show e)
+      ParsePython f -> (liftIO $ try $ readFile f) >>= \ case
+            Right txt -> case Py.parseModule (unpack txt) f of
+                  Right s -> sayLn $ text $ pack $ show $ fst s
+                  Left e  -> sayLn $ text $ "Error: " <> (pack $ Py.prettyText e)
+            Left (e :: IOException) -> sayLn $ text $ "Error: " <> (pack $ show e)
+      ToPython f -> (liftIO $ try $ readFile f) >>= \ case
+            Right txt -> case parse top f txt of
+                  Right s -> sayLn $ text $ pack $ Py.prettyText $ toPython s
+                  Left e  -> sayLn $ text $ "Error: " <> (pack $ errorBundlePretty e)
+            Left (e :: IOException) -> sayLn $ text $ "Error: " <> (pack $ show e)
+      STExpr s -> case parseMaybe expr s of
+            Just e  -> case evalExpr e of
+                  Just e' -> sayLn $ text $ pack $ show e'
+                  Nothing -> sayLn $ text "Eval failed"
+            Nothing -> sayLn $ text "Failed to parse expression."
+      Quit -> liftIO exitSuccess
 
 shell :: IO ()
 shell = do
       let shell' = Shell
             { shellPrefs = O.defaultPrefs
-            , shellInfo = O.info parser (O.progDesc "Simple shell")
-            , shellPrompt = "byline> "
+            , shellInfo = O.info parser (O.progDesc "Interactive structured text interpreter")
+            , shellPrompt = "stxt> "
             }
       void $ runBylineT (go shell')
-      where go :: MonadByline m => Shell Command -> m ()
+      where go :: (MonadByline m, MonadIO m) => Shell Command -> m ()
             go shell' = do
-                  sayLn (text "Starting shell, use ^D to exit")
+                  sayLn (text "Starting interpreter, type \"help\" for usage")
                   pushCompletionFunction (shellCompletion shell')
                   (`evalStateT` shell') $ forever (get >>= runShell dispatch)
 

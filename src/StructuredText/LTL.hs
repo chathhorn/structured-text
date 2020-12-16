@@ -23,6 +23,8 @@ opTable =
         , prefix "<>"  Eventually
         , prefix "()"  Next
         ]
+      , [ binop "U" $ Until
+        ]
       , [ binop "/\\" $ And
         ]
       , [ binop "\\/" $ Or
@@ -56,5 +58,6 @@ data LTL a = Term a
            | Not (LTL a)
            | Always (LTL a)
            | Eventually (LTL a)
+           | Until (LTL a) (LTL a)
            | Next (LTL a)
       deriving (Eq, Show)

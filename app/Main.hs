@@ -74,5 +74,6 @@ main = do
             when (FlagP `elem` flags) $
                   print st
             putStrLn $ Py.prettyText $ toPython st
+
       when (FlagInteractive `elem` flags) shell
 

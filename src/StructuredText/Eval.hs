@@ -1,34 +1,32 @@
-module StructuredText.Eval ( eval ) where
+module StructuredText.Eval ( eval , evalExpr ) where
 
 import Data.Text (Text)
-import Control.Monad.Trans.State.Strict (State, evalState, modify, gets)
-import Control.Monad.State.Strict (MonadState (..))
+import Control.Monad.Trans.State.Strict (State, evalState)
+import Control.Monad.State.Strict (MonadState (..), modify, execState)
 import Control.Monad.Error (MonadError (..))
-import Data.Map.Strict (Map)
+import Data.Map.Strict (Map, insert)
 
 import StructuredText.Syntax
 
-data GlobalDef = FunBlockDef Text [VarDecl] [Stmt]
-               | FunDef Text [VarDecl] [Stmt]
-               | ProgDef Text [VarDecl] [Stmt]
-               | GlobalVarDef Qualifier TypedName
-               | AccessVarDef Qualifier TypedName
+type FEnv = Map Text Global
 
-data S = S (Map Text GlobalDef)
+type EEnv = Map Text Lit
 
-data FEnv = FEnv
-
-type M = State S
+type M = State FEnv
 
 type STError = String
 
-eval :: STxt -> M ()
-eval (STxt gs) = mapM_ evalGlobal gs
+putFunDef :: MonadState FEnv m => Global -> m ()
+putFunDef f@(Function x _ _ _ _) = modify (insert x f)
+putFunDef _                      = undefined
 
-evalGlobal :: Global -> M ()
+eval :: STxt -> Maybe FEnv
+eval (STxt gs) = Just $ execState (mapM_ evalGlobal gs) mempty
+
+evalGlobal :: MonadState FEnv m => Global -> m ()
 evalGlobal = \ case
       FunctionBlock {} -> undefined
-      Function {}      -> undefined
+      f@Function {}    -> putFunDef f
       Program {}       -> undefined
       TypeDef {}       -> undefined
       GlobalVars {}    -> undefined
@@ -44,45 +42,75 @@ data Result = RId Text
             | RWString Text
       deriving (Eq, Show)
 
-evalExpr :: (MonadState FEnv m, MonadError STError m) => Expr -> m Result
+evalExpr :: Monad m => Expr -> m Result
 evalExpr = \ case
       LV lv        -> evalLVal lv
       BinOp op a b -> do
             a' <- evalExpr a
             b' <- evalExpr b
             rBinOp op a' b'
-      Negate e     -> evalExpr e >>= rNegate
-      Not e        -> evalExpr e >>= rNot
-      AddrOf e     -> evalExpr e >>= rAddrOf
-      Call f args  -> mapM evalArg args >>= rCall f
-      Lit lit      -> evalLit lit
+      Negate e    -> evalExpr e >>= rNegate
+      Not e       -> evalExpr e >>= rNot
+      AddrOf e    -> evalExpr e >>= rAddrOf
+      Call f args -> mapM evalArg args >>= rCall f
+      Lit lit     -> evalLit lit
 
-evalLVal :: MonadError STError m => LVal -> m Result
+evalLVal :: LVal -> m Result
 evalLVal = undefined
 
-evalLit :: MonadError STError m => Lit -> m Result
-evalLit = undefined
+evalLit :: Monad m => Lit -> m Result
+evalLit = pure . \ case
+      Bool b              -> RBool b
+      Int i               -> RInt i
+      Float f             -> RFloat f
+      Duration d h m s ms -> RDuration d h m s ms
+      String t            -> RString t
+      WString t           -> RWString t
 
-evalArg :: MonadError STError m => Arg -> m Result
+evalArg :: Arg -> m Result
 evalArg = undefined
 
-rCall :: (MonadState FEnv m, MonadError STError m) => Text -> [Result] -> m Result
+rCall :: Text -> [Result] -> m Result
 rCall = undefined
 
-rBinOp :: MonadError STError m => Op -> Result -> Result -> m Result
-rBinOp Plus (RInt x) (RInt y) = pure $ RInt $ x + y
+-- TODO: meh
+rBinOp :: Monad m => Op -> Result -> Result -> m Result
+rBinOp Plus  (RInt x) (RInt y) = pure $ RInt  $ x + y
+rBinOp Minus (RInt x) (RInt y) = pure $ RInt  $ x - y
+rBinOp Mult  (RInt x) (RInt y) = pure $ RInt  $ x * y
+rBinOp Div   (RInt x) (RInt y) = pure $ RInt  $ x `div` y -- TODO
 
-rNegate :: MonadError STError m => Result -> m Result
+rBinOp Lt    (RInt x) (RInt y) = pure $ RBool $ x < y
+rBinOp Gt    (RInt x) (RInt y) = pure $ RBool $ x > y
+rBinOp Lte   (RInt x) (RInt y) = pure $ RBool $ x <= y
+rBinOp Gte   (RInt x) (RInt y) = pure $ RBool $ x >= y
+
+rBinOp Mod   (RInt x) (RInt y) = pure $ RInt $ x `mod` y
+
+rBinOp Plus  (RFloat x) (RFloat y) = pure $ RFloat $ x + y
+rBinOp Minus (RFloat x) (RFloat y) = pure $ RFloat $ x - y
+rBinOp Mult  (RFloat x) (RFloat y) = pure $ RFloat $ x * y
+rBinOp Div   (RFloat x) (RFloat y) = pure $ RFloat $ x / y
+
+rBinOp Lt    (RFloat x) (RFloat y) = pure $ RBool $ x < y
+rBinOp Gt    (RFloat x) (RFloat y) = pure $ RBool $ x > y
+rBinOp Lte   (RFloat x) (RFloat y) = pure $ RBool $ x <= y
+rBinOp Gte   (RFloat x) (RFloat y) = pure $ RBool $ x >= y
+
+rBinOp Eq    x y = pure $ RBool $ x == y
+rBinOp Neq   x y = pure $ RBool $ x /= y
+
+rNegate :: Monad m => Result -> m Result
 rNegate = \ case
       RInt x   -> pure $ RInt (-x)
       RFloat x -> pure $ RFloat (-x)
       _        -> undefined
 
-rNot :: MonadError STError m => Result -> m Result
+rNot :: Monad m => Result -> m Result
 rNot = \ case
       (RBool x) -> pure $ RBool $ not x
       _         -> undefined
 
-rAddrOf :: MonadError STError m => Result -> m Result
+rAddrOf :: Monad m => Result -> m Result
 rAddrOf = undefined
 

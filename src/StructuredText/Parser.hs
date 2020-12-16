@@ -1,5 +1,5 @@
 module StructuredText.Parser
-    ( top, Parser
+    ( top, expr, Parser
     ) where
 
 import Control.Monad ( void )
