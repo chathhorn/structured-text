@@ -34,18 +34,26 @@ parseLtl term = makeExprParser term' opTable
 
 opTable :: [[Operator Parser (LTL a)]]
 opTable =
-      [ [ prefix "!"   Not
-        , prefix "[]"  Always
-        , prefix "<>"  Eventually
-        , prefix "()"  Next
+      [ [ prefix "!"  Not
+        , prefix "¬"  Not
+        , prefix "[]" Always
+        , prefix "□"  Always
+        , prefix "<>" Eventually
+        , prefix "◇"  Eventually
+        , prefix "()" Next
+        , prefix "◯"  Next
         ]
       , [ binop "U" $ Until
+        , binop "⋃" $ Until
         ]
       , [ binop "/\\" $ And
+        , binop "∧"   $ And
         ]
       , [ binop "\\/" $ Or
+        , binop "∨"   $ Or
         ]
       , [ binop "->"  $ Implies
+        , binop "→"   $ Implies
         ]
       ]
 
