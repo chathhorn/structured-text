@@ -107,6 +107,7 @@ data Expr = LV LVal
           | AddrOf Expr
           | Call Text [Arg]
           | Lit Lit
+          | Paren Expr
       deriving (Eq, Show)
 
 data Type = TBool   | TBoolREdge | TBoolFEdge
