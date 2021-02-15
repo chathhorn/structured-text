@@ -1,20 +1,19 @@
 module StructuredText.Eval ( eval , evalExpr ) where
 
 import Data.Text (Text)
-import Control.Monad.Trans.State.Strict (State, evalState)
 import Control.Monad.State.Strict (MonadState (..), modify, execState)
-import Control.Monad.Error (MonadError (..))
+import Control.Monad.Except (MonadError (..))
 import Data.Map.Strict (Map, insert)
 
 import StructuredText.Syntax
 
 type FEnv = Map Text Global
 
-type EEnv = Map Text Lit
+-- type EEnv = Map Text Lit
 
-type M = State FEnv
+-- type M = State FEnv
 
-type STError = String
+type STError = Text
 
 putFunDef :: MonadState FEnv m => Global -> m ()
 putFunDef f@(Function x _ _ _ _) = modify (insert x f)
@@ -42,7 +41,7 @@ data Result = RId Text
             | RWString Text
       deriving (Eq, Show)
 
-evalExpr :: Monad m => Expr -> m Result
+evalExpr :: MonadError STError m => Expr -> m Result
 evalExpr = \ case
       LV lv        -> evalLVal lv
       BinOp op a b -> do
@@ -54,6 +53,7 @@ evalExpr = \ case
       AddrOf e    -> evalExpr e >>= rAddrOf
       Call f args -> mapM evalArg args >>= rCall f
       Lit lit     -> evalLit lit
+      Paren e     -> evalExpr e
 
 evalLVal :: LVal -> m Result
 evalLVal = undefined
@@ -74,7 +74,7 @@ rCall :: Text -> [Result] -> m Result
 rCall = undefined
 
 -- TODO: meh
-rBinOp :: Monad m => Op -> Result -> Result -> m Result
+rBinOp :: MonadError STError m => Op -> Result -> Result -> m Result
 rBinOp Plus  (RInt x) (RInt y) = pure $ RInt  $ x + y
 rBinOp Minus (RInt x) (RInt y) = pure $ RInt  $ x - y
 rBinOp Mult  (RInt x) (RInt y) = pure $ RInt  $ x * y
@@ -99,6 +99,8 @@ rBinOp Gte   (RFloat x) (RFloat y) = pure $ RBool $ x >= y
 
 rBinOp Eq    x y = pure $ RBool $ x == y
 rBinOp Neq   x y = pure $ RBool $ x /= y
+
+rBinOp _ _ _ = throwError "evaluating binary operator"
 
 rNegate :: Monad m => Result -> m Result
 rNegate = \ case

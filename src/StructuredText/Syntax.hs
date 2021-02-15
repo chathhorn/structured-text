@@ -110,6 +110,10 @@ data Expr = LV LVal
           | Paren Expr
       deriving (Eq, Show)
 
+instance LTL.AtomicProp Expr where
+      atTrue = Lit (Bool True)
+      atNot = Not . Paren
+
 data Type = TBool   | TBoolREdge | TBoolFEdge
           | TId Text
           | TReal   | TLReal

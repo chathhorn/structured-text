@@ -17,7 +17,7 @@ import Control.Monad.Combinators.Expr ( makeExprParser, Operator (..) )
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
 
-import Prettyprinter ((<+>), Pretty (..), Doc (..))
+import Prettyprinter ((<+>), Pretty (..), Doc)
 
 type Parser = Parsec Void Text
 

@@ -4,24 +4,21 @@ module Shell ( shell ) where
 import Prelude hiding (readFile, concat)
 import Byline
 import Byline.Shell
-import Data.Text (Text, concat, pack, unpack)
+import Data.Text (Text, pack, unpack)
 import Data.Text.IO (readFile)
 import Control.Monad (forever, void)
 import Control.Monad.Trans.State.Strict (evalStateT)
-import Control.Monad.State.Class (MonadState (..), modify')
+import Control.Monad.State.Class (MonadState (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import System.Exit (exitSuccess, exitFailure)
-import Control.Exception (try, IOException (..))
-import qualified Data.Text as Text
+import System.Exit (exitSuccess)
+import Control.Exception (try, IOException)
 import qualified Options.Applicative as O
 import Text.Megaparsec (parse, parseMaybe, errorBundlePretty)
 
-import StructuredText.Syntax (STxt)
 import StructuredText.Parser (top, expr)
 import StructuredText.ToPython (toPython)
 import StructuredText.Eval (eval, evalExpr)
 
-import qualified Language.Python.Common.AST as Py
 import qualified Language.Python.Common.Pretty as Py
 import qualified Language.Python.Version3.Parser as Py
 import Language.Python.Common.PrettyAST ()
@@ -78,8 +75,8 @@ dispatch = \ case
             Left (e :: IOException) -> sayLn $ text $ "Error: " <> (pack $ show e)
       STExpr s -> case parseMaybe expr s of
             Just e  -> case evalExpr e of
-                  Just e' -> sayLn $ text $ pack $ show e'
-                  Nothing -> sayLn $ text "Eval failed"
+                  Right e' -> sayLn $ text $ pack $ show e'
+                  Left err -> sayLn $ text $ "Eval failed: " <> err
             Nothing -> sayLn $ text "Failed to parse expression."
       Quit -> liftIO exitSuccess
 

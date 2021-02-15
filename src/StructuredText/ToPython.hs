@@ -1,11 +1,11 @@
 {-# LANGUAGE TupleSections #-}
 module StructuredText.ToPython ( toPython ) where
 
-import Data.Maybe (catMaybes)
-import Data.Text (Text, unpack, pack, append)
+-- import Data.Maybe (catMaybes)
+import Data.Text (Text, unpack)
 import Control.Monad.Trans.State.Strict (State, evalState, modify, gets)
 import StructuredText.Syntax
-import StructuredText.LTL (LTL, NormLTL (..), atoms, depth)
+import StructuredText.LTL (NormLTL (..), atoms, depth)
 import qualified StructuredText.LTL as LTL
 import Text.Casing (quietSnake)
 import qualified Language.Python.Common.AST as Py
@@ -90,7 +90,7 @@ ltlFun (Py.Ident x ()) ds ltl n = Py.Fun (Py.Ident (x ++ "_ltl_" ++ show n) ()) 
             depth'   = litInt $ depth ltl
             depth1'  = litInt $ depth ltl - 1
             atoms'   = atomIds ltl
-            var x    = Py.Var x ()
+            var x'   = Py.Var x' ()
             i'       = iterId n
             vi       = var i'
             vj       = var jId
@@ -108,20 +108,22 @@ transVar x = Py.Var <$> transId x <*> pure ()
 transOneVar :: Text -> M [Py.Expr ()]
 transOneVar x = pure <$> transVar x
 
-transVarDecl :: VarDecl -> M [Py.Statement ()]
-transVarDecl = (catMaybes <$>) . mapM transTypedName . \ case
-      Var _ vs         -> vs
-      VarInput _ vs    -> vs
-      VarOutput _ vs   -> vs
-      VarInOut _ vs    -> vs
-      VarExternal _ vs -> vs
-      VarGlobal _ vs   -> vs
-      VarAccess _ vs   -> vs
+-- TODO
+-- transVarDecl :: VarDecl -> M [Py.Statement ()]
+-- transVarDecl = (catMaybes <$>) . mapM transTypedName . \ case
+--       Var _ vs         -> vs
+--       VarInput _ vs    -> vs
+--       VarOutput _ vs   -> vs
+--       VarInOut _ vs    -> vs
+--       VarExternal _ vs -> vs
+--       VarGlobal _ vs   -> vs
+--       VarAccess _ vs   -> vs
 
-transTypedName :: TypedName -> M (Maybe (Py.Statement ()))
-transTypedName = \ case
-      TypedName x _ _ (Just e) -> Just <$> (Py.Assign <$> transOneVar x <*> transInit e <*> pure ())
-      _                        -> pure Nothing
+-- TODO
+-- transTypedName :: TypedName -> M (Maybe (Py.Statement ()))
+-- transTypedName = \ case
+--       TypedName x _ _ (Just e) -> Just <$> (Py.Assign <$> transOneVar x <*> transInit e <*> pure ())
+--       _                        -> pure Nothing
 
 transParams :: VarDecl -> M [Py.Parameter ()]
 transParams = \ case
@@ -136,10 +138,6 @@ transParam = \ case
 
 pyRange :: Py.Expr () -> Py.Expr () -> Py.Expr ()
 pyRange from to = Py.Call (Py.Var (Py.Ident "range" ()) ()) [Py.ArgExpr from (), Py.ArgExpr to ()] ()
-
-instance LTL.AtomicProp Expr where
-      atTrue = Lit (Bool True)
-      atNot = Not . Paren
 
 atomIds :: NormLTL (Py.Ident (), a) -> [Py.Ident ()]
 atomIds ltl = map (fst . fst) $ atoms ltl
@@ -161,31 +159,32 @@ transLTL = trans' 0
                   LTL.TermN  (x, _)   -> Py.Subscript (Py.Var x ()) (litInt d) ()
                   LTL.AndN   e1 e2    -> Py.BinaryOp (Py.And ()) (trans' d e1) (trans' d e2) ()
                   LTL.OrN    e1 e2    -> Py.BinaryOp (Py.Or ()) (trans' d e1) (trans' d e2) ()
-                  LTL.UntilN e1 e2    -> trans' d e1 -- TODO
-                  LTL.ReleaseN e1 e2  -> trans' d e2 -- TODO
+                  LTL.UntilN e1 _     -> trans' d e1 -- TODO
+                  LTL.ReleaseN _ e2   -> trans' d e2 -- TODO
                   LTL.NextN  e        -> trans' (d + 1) e
 
 
 transStmt :: Stmt -> M (Py.Statement ())
 transStmt = \ case
-      Assign lhs rhs     -> do
+      Assign lhs rhs           -> do
             r <- isReturnLVal lhs
             if r then Py.Return <$> (pure <$> transExpr rhs) <*> pure ()
                  else Py.Assign <$> (pure <$> transLVal lhs) <*> transExpr rhs <*> pure ()
-      Invoke {}          -> error "transStmt Invoke: unimplemented"
-      Return             -> Py.Return <$> pure Nothing <*> pure ()
-      If e thn [] els    -> Py.Conditional <$> ((\ a b -> [(a,b)]) <$> transExpr e <*> mapM transStmt thn) <*> mapM transStmt els <*> pure ()
-      Case {}            -> error "transStmt Case: unimplemented"
+      Invoke {}                -> error "transStmt Invoke: unimplemented"
+      Return                   -> Py.Return <$> pure Nothing <*> pure ()
+      If e thn [] els          -> Py.Conditional <$> ((\ a b -> [(a,b)]) <$> transExpr e <*> mapM transStmt thn) <*> mapM transStmt els <*> pure ()
+      If _ _ _ _               -> error "transStmt: If"
+      Case {}                  -> error "transStmt Case: unimplemented"
                                  -- TODO: I think "to" in the range needs to be incremented.
-      For x from to step body -> Py.For <$> transOneVar x <*> (pyRange <$> transExpr from <*> transExpr to) <*> mapM transStmt body <*> pure [] <*> pure ()
-      While c body       -> Py.While <$> transExpr c <*> mapM transStmt body <*> pure [] <*> pure ()
-      Repeat body c      -> do
+      For x from to _step body -> Py.For <$> transOneVar x <*> (pyRange <$> transExpr from <*> transExpr to) <*> mapM transStmt body <*> pure [] <*> pure ()
+      While c body             -> Py.While <$> transExpr c <*> mapM transStmt body <*> pure [] <*> pure ()
+      Repeat body c            -> do
             c' <- transExpr c
             body' <- mapM transStmt body
             pure $ Py.While (Py.Bool True ()) (body' ++ [Py.Conditional [(c', [Py.Break ()])] [] ()]) [] ()
-      LTL ltl            -> pure $ Py.StmtExpr (Py.Strings ["# " , show ltl] ()) ()
-      Exit               -> Py.Return <$> pure Nothing <*> pure () -- TODO: how would it be different from return?
-      Empty              -> Py.Pass <$> pure ()
+      LTL ltl                  -> pure $ Py.StmtExpr (Py.Strings ["# " , show ltl] ()) ()
+      Exit                     -> Py.Return <$> pure Nothing <*> pure () -- TODO: how would it be different from return?
+      Empty                    -> Py.Pass <$> pure ()
 
 transInit :: Init -> M (Py.Expr ())
 transInit = \ case
@@ -194,14 +193,14 @@ transInit = \ case
 
 transExpr :: Expr -> M (Py.Expr ())
 transExpr = \ case
-      LV lv        -> transLVal lv
-      BinOp op a b -> Py.BinaryOp <$> transOp op <*> transExpr a <*> transExpr b <*> pure ()
-      Negate e     -> Py.UnaryOp (Py.Minus ()) <$> transExpr e <*> pure ()
-      Not e        -> Py.UnaryOp (Py.Not ()) <$> transExpr e <*> pure ()
-      AddrOf _     -> error "transExpr AddrOf: unimplemented"
-      Call f args  -> error "transExpr Call: unimplemented"
-      Paren e      -> Py.Paren <$> transExpr e <*> pure ()
-      Lit n        -> transLit n
+      LV lv         -> transLVal lv
+      BinOp op a b  -> Py.BinaryOp <$> transOp op <*> transExpr a <*> transExpr b <*> pure ()
+      Negate e      -> Py.UnaryOp (Py.Minus ()) <$> transExpr e <*> pure ()
+      Not e         -> Py.UnaryOp (Py.Not ()) <$> transExpr e <*> pure ()
+      AddrOf _      -> error "transExpr AddrOf: unimplemented"
+      Call _f _args -> error "transExpr Call: unimplemented"
+      Paren e       -> Py.Paren <$> transExpr e <*> pure ()
+      Lit n         -> transLit n
 
 isReturnLVal :: LVal -> M Bool
 isReturnLVal = \ case
