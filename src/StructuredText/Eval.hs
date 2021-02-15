@@ -13,7 +13,7 @@ type FEnv = Map Text Global
 
 -- type M = State FEnv
 
-type STError = Text
+type Err = Text
 
 putFunDef :: MonadState FEnv m => Global -> m ()
 putFunDef f@(Function x _ _ _ _) = modify (insert x f)
@@ -41,7 +41,7 @@ data Result = RId Text
             | RWString Text
       deriving (Eq, Show)
 
-evalExpr :: MonadError STError m => Expr -> m Result
+evalExpr :: MonadError Err m => Expr -> m Result
 evalExpr = \ case
       LV lv        -> evalLVal lv
       BinOp op a b -> do
@@ -74,7 +74,7 @@ rCall :: Text -> [Result] -> m Result
 rCall = undefined
 
 -- TODO: meh
-rBinOp :: MonadError STError m => Op -> Result -> Result -> m Result
+rBinOp :: MonadError Err m => Op -> Result -> Result -> m Result
 rBinOp Plus  (RInt x) (RInt y) = pure $ RInt  $ x + y
 rBinOp Minus (RInt x) (RInt y) = pure $ RInt  $ x - y
 rBinOp Mult  (RInt x) (RInt y) = pure $ RInt  $ x * y

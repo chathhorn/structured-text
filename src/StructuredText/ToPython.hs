@@ -3,28 +3,32 @@ module StructuredText.ToPython ( toPython ) where
 
 -- import Data.Maybe (catMaybes)
 import Data.Text (Text, unpack)
-import Control.Monad.Trans.State.Strict (State, evalState, modify, gets)
+import Control.Monad.State.Class (MonadState, gets, modify)
+import Control.Monad.Trans.State.Strict (evalStateT)
+import Control.Monad.Except (MonadError (..))
 import StructuredText.Syntax
 import StructuredText.LTL (NormLTL (..), atoms, depth)
 import qualified StructuredText.LTL as LTL
 import Text.Casing (quietSnake)
 import qualified Language.Python.Common.AST as Py
 
-type M = State [Text]
+type Sto = [Text]
 
-putFId :: Text -> M ()
+type Err = Text
+
+putFId :: MonadState Sto m => Text -> m ()
 putFId x = modify (x:)
 
-isFId :: Text -> M Bool
+isFId :: MonadState Sto m => Text -> m Bool
 isFId x = gets $ elem x
 
-toPython :: STxt -> Py.Module ()
-toPython = flip evalState [] . transSTxt
+toPython :: STxt -> Either Err (Py.Module ())
+toPython = flip evalStateT [] . transSTxt
 
-transSTxt :: STxt -> M (Py.Module ())
+transSTxt :: (MonadState Sto m, MonadError Err m) => STxt -> m (Py.Module ())
 transSTxt (STxt gs) = Py.Module <$> (concat <$> mapM transGlobal gs)
 
-transGlobal :: Global -> M [Py.Statement ()]
+transGlobal :: (MonadState Sto m, MonadError Err m) => Global -> m [Py.Statement ()]
 transGlobal = \ case
       FunctionBlock x ds body         -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
       Function x ltls _ ds body       -> do
@@ -35,8 +39,8 @@ transGlobal = \ case
             let ltls''' = zip ltls'' [0..]
             ((concatMap (uncurry ltlGlob) ltls''' ++ map (uncurry (ltlFun x' ds')) ltls''') ++) . pure <$> (Py.Fun x' ds' Nothing <$> (putFId x *> mapM transStmt body) <*> pure ())
       Program x ds body               -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
-      TypeDef {}                      -> error "transGlobal TypeDef: unimplemented"
-      GlobalVars {}                   -> error "transGlobal GlobalVars: unimplemented"
+      TypeDef {}                      -> throwError "transGlobal TypeDef: unimplemented"
+      GlobalVars {}                   -> throwError "transGlobal GlobalVars: unimplemented"
 
 iterId :: Int -> Py.Ident ()
 iterId n = Py.Ident ("i_" ++ show n) ()
@@ -99,17 +103,17 @@ ltlFun (Py.Ident x ()) ds ltl n = Py.Fun (Py.Ident (x ++ "_ltl_" ++ show n) ()) 
             tosub a d = Py.Subscript (var a) (litInt d) ()
             isNotNone a = Py.Paren (Py.BinaryOp (Py.IsNot ()) a (Py.None ()) ()) ()
 
-transId :: Text -> M (Py.Ident ())
+transId :: Monad m => Text -> m (Py.Ident ())
 transId x = pure $ Py.Ident (quietSnake $ unpack x) ()
 
-transVar :: Text -> M (Py.Expr ())
+transVar :: Monad m => Text -> m (Py.Expr ())
 transVar x = Py.Var <$> transId x <*> pure ()
 
-transOneVar :: Text -> M [Py.Expr ()]
+transOneVar :: Monad m => Text -> m [Py.Expr ()]
 transOneVar x = pure <$> transVar x
 
 -- TODO
--- transVarDecl :: VarDecl -> M [Py.Statement ()]
+-- transVarDecl :: Monad m => VarDecl -> m [Py.Statement ()]
 -- transVarDecl = (catMaybes <$>) . mapM transTypedName . \ case
 --       Var _ vs         -> vs
 --       VarInput _ vs    -> vs
@@ -120,21 +124,21 @@ transOneVar x = pure <$> transVar x
 --       VarAccess _ vs   -> vs
 
 -- TODO
--- transTypedName :: TypedName -> M (Maybe (Py.Statement ()))
+-- transTypedName :: Monad m => TypedName -> m (Maybe (Py.Statement ()))
 -- transTypedName = \ case
 --       TypedName x _ _ (Just e) -> Just <$> (Py.Assign <$> transOneVar x <*> transInit e <*> pure ())
 --       _                        -> pure Nothing
 
-transParams :: VarDecl -> M [Py.Parameter ()]
+transParams :: MonadError Err m => VarDecl -> m [Py.Parameter ()]
 transParams = \ case
       VarInput _ vs -> mapM transParam vs
       VarInOut _ vs -> mapM transParam vs
       _             -> pure []
 
-transParam :: TypedName -> M (Py.Parameter ())
+transParam :: MonadError Err m => TypedName -> m (Py.Parameter ())
 transParam = \ case
       TypedName x _ _ e -> Py.Param <$> transId x <*> pure Nothing <*> (mapM transInit e) <*> pure ()
-      TypedLocation {}  -> error "transParam TypedLocation: unimplemented"
+      TypedLocation {}  -> throwError "transParam TypedLocation: unimplemented"
 
 pyRange :: Py.Expr () -> Py.Expr () -> Py.Expr ()
 pyRange from to = Py.Call (Py.Var (Py.Ident "range" ()) ()) [Py.ArgExpr from (), Py.ArgExpr to ()] ()
@@ -143,7 +147,7 @@ atomIds :: NormLTL (Py.Ident (), a) -> [Py.Ident ()]
 atomIds ltl = map (fst . fst) $ atoms ltl
 
 -- TODO: should make LTL functor instance.
-transLTLTerms :: Int -> NormLTL Expr -> M (NormLTL (Py.Ident (), Py.Expr ()))
+transLTLTerms :: MonadError Err m => Int -> NormLTL Expr -> m (NormLTL (Py.Ident (), Py.Expr ()))
 transLTLTerms n = trans' "_"
       where trans' i = \ case
                   LTL.TermN  a       -> LTL.TermN . (Py.Ident ("atom" ++ show n ++ i) (),) <$> transExpr a
@@ -164,17 +168,17 @@ transLTL = trans' 0
                   LTL.NextN  e        -> trans' (d + 1) e
 
 
-transStmt :: Stmt -> M (Py.Statement ())
+transStmt :: (MonadState Sto m, MonadError Err m) => Stmt -> m (Py.Statement ())
 transStmt = \ case
       Assign lhs rhs           -> do
             r <- isReturnLVal lhs
             if r then Py.Return <$> (pure <$> transExpr rhs) <*> pure ()
                  else Py.Assign <$> (pure <$> transLVal lhs) <*> transExpr rhs <*> pure ()
-      Invoke {}                -> error "transStmt Invoke: unimplemented"
+      Invoke {}                -> throwError "transStmt Invoke: unimplemented"
       Return                   -> Py.Return <$> pure Nothing <*> pure ()
       If e thn [] els          -> Py.Conditional <$> ((\ a b -> [(a,b)]) <$> transExpr e <*> mapM transStmt thn) <*> mapM transStmt els <*> pure ()
-      If _ _ _ _               -> error "transStmt: If"
-      Case {}                  -> error "transStmt Case: unimplemented"
+      If _ _ _ _               -> throwError "transStmt: If"
+      Case {}                  -> throwError "transStmt Case: unimplemented"
                                  -- TODO: I think "to" in the range needs to be incremented.
       For x from to _step body -> Py.For <$> transOneVar x <*> (pyRange <$> transExpr from <*> transExpr to) <*> mapM transStmt body <*> pure [] <*> pure ()
       While c body             -> Py.While <$> transExpr c <*> mapM transStmt body <*> pure [] <*> pure ()
@@ -186,34 +190,34 @@ transStmt = \ case
       Exit                     -> Py.Return <$> pure Nothing <*> pure () -- TODO: how would it be different from return?
       Empty                    -> Py.Pass <$> pure ()
 
-transInit :: Init -> M (Py.Expr ())
+transInit :: MonadError Err m => Init -> m (Py.Expr ())
 transInit = \ case
       SimpleInit e    -> transLit e
-      CompoundInit {} -> error "transInit compoundInit: unimplemented"
+      CompoundInit {} -> throwError "transInit compoundInit: unimplemented"
 
-transExpr :: Expr -> M (Py.Expr ())
+transExpr :: MonadError Err m => Expr -> m (Py.Expr ())
 transExpr = \ case
       LV lv         -> transLVal lv
       BinOp op a b  -> Py.BinaryOp <$> transOp op <*> transExpr a <*> transExpr b <*> pure ()
       Negate e      -> Py.UnaryOp (Py.Minus ()) <$> transExpr e <*> pure ()
       Not e         -> Py.UnaryOp (Py.Not ()) <$> transExpr e <*> pure ()
-      AddrOf _      -> error "transExpr AddrOf: unimplemented"
-      Call _f _args -> error "transExpr Call: unimplemented"
+      AddrOf _      -> throwError "transExpr AddrOf: unimplemented"
+      Call _f _args -> throwError "transExpr Call: unimplemented"
       Paren e       -> Py.Paren <$> transExpr e <*> pure ()
       Lit n         -> transLit n
 
-isReturnLVal :: LVal -> M Bool
+isReturnLVal :: MonadState Sto m => LVal -> m Bool
 isReturnLVal = \ case
       Id x -> isFId x
       _    -> pure False
 
 
-transLVal :: LVal -> M (Py.Expr ())
+transLVal :: MonadError Err m => LVal -> m (Py.Expr ())
 transLVal = \ case
       Id x -> Py.Var <$> transId x <*> pure ()
-      _    -> error "transLVal: unimplemented"
+      _    -> throwError "transLVal: unimplemented"
 
-transOp :: Op -> M (Py.Op ())
+transOp :: Monad m => Op -> m (Py.Op ())
 transOp = \ case
       Plus  -> pure $ Py.Plus ()
       Minus -> pure $ Py.Minus ()
@@ -231,11 +235,11 @@ transOp = \ case
       Xor   -> pure $ Py.Xor ()
       Or    -> pure $ Py.Or ()
 
-transLit :: Lit -> M (Py.Expr ())
+transLit :: MonadError Err m => Lit -> m (Py.Expr ())
 transLit = \ case
       Bool b      -> pure $ Py.Bool b ()
       Int n       -> pure $ Py.Int (toInteger n) (show n) ()
       Float f     -> pure $ Py.Float f (show f) ()
-      Duration {} -> error "transLit Duration: unimplemented"
+      Duration {} -> throwError "transLit Duration: unimplemented"
       String s    -> pure $ Py.ByteStrings [unpack s] ()
       WString s   -> pure $ Py.Strings [unpack s] ()

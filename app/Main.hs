@@ -1,11 +1,11 @@
 module Main where
 
-import Prelude hiding (readFile)
+import Prelude hiding (readFile, putStrLn)
 import Control.Monad (when, forM_)
 import Data.Functor (($>))
 import System.Exit (exitFailure, exitSuccess)
-import Data.Text (unpack)
-import Data.Text.IO (readFile)
+import Data.Text (unpack, pack)
+import Data.Text.IO (readFile, putStrLn)
 import System.Environment (getArgs)
 import Text.Megaparsec (parse, errorBundlePretty)
 import System.Console.GetOpt (getOpt, usageInfo, OptDescr (..), ArgOrder (..), ArgDescr (..))
@@ -42,7 +42,7 @@ parsePy f = do
       txt <- readFile f
       case Py.parseModule (unpack txt) f of
             Left e  -> do
-                  putStrLn $ "Error: " ++ Py.prettyText e
+                  putStrLn $ "Error: " <> pack (Py.prettyText e)
                   exitFailure
             Right s -> return $ fst s $> ()
 
@@ -51,7 +51,7 @@ parseST f = do
       txt <- readFile f
       case parse top f txt of
             Left e  -> do
-                  putStrLn $ "Error: " ++ errorBundlePretty e
+                  putStrLn $ "Error: " <> pack (errorBundlePretty e)
                   exitFailure
             Right s -> return s
 
@@ -73,7 +73,11 @@ main = do
             st <- parseST f
             when (FlagP `elem` flags) $
                   print st
-            putStrLn $ Py.prettyText $ toPython st
+
+            case toPython st of
+                  Right py -> putStrLn $ pack (Py.prettyText py)
+                  Left err -> putStrLn $ "Error: " <> err
+
 
       when (FlagInteractive `elem` flags) shell
 

@@ -70,7 +70,9 @@ dispatch = \ case
             Left (e :: IOException) -> sayLn $ text $ "Error: " <> (pack $ show e)
       ToPython f -> (liftIO $ try $ readFile f) >>= \ case
             Right txt -> case parse top f txt of
-                  Right s -> sayLn $ text $ pack $ Py.prettyText $ toPython s
+                  Right s -> case toPython s of
+                        Right py -> sayLn $ text $ pack $ Py.prettyText py
+                        Left err -> sayLn $ text $ "Error: " <> err
                   Left e  -> sayLn $ text $ "Error: " <> (pack $ errorBundlePretty e)
             Left (e :: IOException) -> sayLn $ text $ "Error: " <> (pack $ show e)
       STExpr s -> case parseMaybe expr s of
