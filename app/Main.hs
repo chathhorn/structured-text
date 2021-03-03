@@ -4,7 +4,7 @@ import Prelude hiding (readFile, putStr, putStrLn)
 import Control.Monad (when, forM_)
 import Data.Functor (($>))
 import Data.Text.IO (readFile, putStrLn, hPutStrLn)
-import Data.Text (unpack, pack)
+import Data.Text (unpack, pack, Text)
 import System.Console.GetOpt (getOpt, usageInfo, OptDescr (..), ArgOrder (..), ArgDescr (..))
 import System.Environment (getArgs)
 import System.Exit (exitFailure, exitSuccess)
@@ -76,6 +76,9 @@ main :: IO ()
 main = do
       (flags, filenames, errs) <-  getOpt Permute options <$> getArgs
 
+      let verbose :: Text -> IO ()
+          verbose = when (FlagVerbose `elem` flags) . putStrLn
+
       when (not $ null errs) $ do
             mapM_ (SIO.hPutStrLn SIO.stderr) errs
             printUsage
@@ -96,18 +99,19 @@ main = do
             exitSuccess
 
       forM_ filenames $ \ f -> do
-            when (FlagVerbose `elem` flags) $ putStrLn $ "Parsing: " <> pack f
+            verbose $ pack f <> ": parsing."
 
             st <- parseST f
             when (FlagParse `elem` flags) $
                   print st
 
-            when (FlagVerbose `elem` flags) $ putStrLn $ "Translating: " <> pack f
+            verbose $ pack f <> ": translating."
 
             case toPython st of
                   Left err -> hPutStrLn SIO.stderr $ "Error: " <> err
                   Right py -> do
                         fout <- getOutfile flags f
+                        verbose $ "Writing Python to " <> pack fout <> "."
                         SIO.writeFile fout $ Py.prettyText py
 
       when (FlagInteractive `elem` flags) shell
