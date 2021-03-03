@@ -51,6 +51,7 @@ executables:
     - structured-text
     - byline >= 1.1.0.1 && < 1.1.1
     - optparse-applicative >= 0.16.1.0 && < 0.16.2
+    - filepath >= 1.4.2 && < 1.4.3
 
 tests:
   structured-text-test:
