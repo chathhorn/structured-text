@@ -1,0 +1,99 @@
+\documentclass{article}
+\usepackage[printonlyused]{acronym}
+\usepackage{relsize}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[textsize=footnotesize]{todonotes}
+\usepackage[leqno]{amsmath}
+\usepackage{stmaryrd} % double brackets
+\usepackage{mathpartir}
+\usepackage{alltt}
+\usepackage[mathscr]{euscript}
+\usepackage{amsthm}
+\usepackage{booktabs}
+\usepackage{threeparttable} % for table notes
+\usepackage{textcomp} % helps listings
+\usepackage[T1]{fontenc} % so listings double quotes are straight
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage{txfonts}
+\usepackage{microtype}
+\usepackage{xspace}
+\usepackage{ifthen}
+\usepackage{comment} % to allow \begin{comment} ... \end{comment}
+\usepackage{cite} % to order and compress citations
+\usepackage{placeins} % for FloatBarrier
+\usepackage{listings}
+\usepackage{tikz}
+\usepackage{mdwlist} % gives list* environments to singlespace lists
+\usepackage{arydshln}
+\usepackage{amssymb}
+\usepackage{sepnum}
+\usepackage{fmtcount} % for helping with footnotes in tables
+\usepackage{ucs} % for unicode characters (just for \Rosu and \Serbanuta)
+\usepackage[pagebackref]{hyperref}
+
+\providecommand{\Sec}{}
+\renewcommand{\Sec}{Section~}
+\newcommand{\Fig}{Figure~}
+
+\newlength{\widthtmp}
+\newcommand{\getWidth}[1]{
+  \settowidth{\widthtmp}{#1}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%% Settings
+
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.75}
+\renewcommand{\bottomfraction}{0.85}
+\hyphenation{de-sug-ar-ing counter-exam-ple currFunc gotoMap loopMarked}
+
+% this puts a non breaking space between the authors' names and the [citation]
+\renewcommand{\citet}[2][]{\citeauthor{#2}~\citep[#1]{#2}}
+\lstset{language=C}
+\lstset{
+	xleftmargin=2em,
+	columns=flexible,
+	upquote=true,
+	texcl=true,
+	escapechar=\@,
+	tabsize=2,
+	basicstyle=\ttfamily,
+	keywordstyle=,
+	aboveskip=\lstspace,
+	belowskip=\lstspace,
+	numberstyle=\small,%\tiny
+}
+\lstdefinelanguage{verbatim}{
+	basicstyle=\ttfamily,       % the size of the fonts that are used for the code
+	aboveskip=\lstspace,
+	belowskip=\lstspace,
+}
+
+\newcommand{\syntax}[1]{\lstinline|#1|}
+
+\lstnewenvironment{clisting}[1][]{
+	\lstset{language=C, basicstyle=\small\ttfamily, #1}
+}{}
+\lstnewenvironment{bashlisting}{
+	\lstset{language=verbatim, basicstyle=\small\ttfamily}
+}{}
+
+\begin{document}
+
+\title{Notes}
+\author{}
+
+\maketitle
+
+% Body.
+\input{stxt}
+
+% Bibliography.
+\bibliographystyle{abbrvnat}
+\bibliography{refs}
+
+\end{document}
