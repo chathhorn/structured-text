@@ -89,10 +89,47 @@ Previous work on the semantics of PLC languages includes:
 \begin{itemize}
 
 \item Coq semantics: Biha and Blech~\cite{biha:plc_sem1, biha:plc_sem2,
-biha:plc_sem3}.
+biha:plc_sem3}. They give a formal semantics for IL and sequential function
+charts (SFC) and a tool for automatically generating SFC representations from a
+graphical description. Also they prove safety properties of a PLC in a real
+industrial demonstrator.
+
+% Note: should look into this. The ``industrial demonstrator'' might be useful.
+% The Coq semantics might be interesting. I'm curious how they formalized SFC as
+% well as what the hell this tool is.
 
 \item Petri net semantics: Heiner and Menzel~\cite{heiner:petri}. They give a
 semantics for the IL language.
+
+% Note: Petri nets, ugh.
+
+\item $\mathbb{K}$ framework operational semantics: Huang et al.~\cite{huang:kst}.
+
+% Note: they cite me. :)
+
+\end{itemize}
+
+\subsection{Symbolic execution, testing}
+
+\begin{itemize}
+
+\item Concolic test generation: Bohlender et al.~\cite{bohlender:concolic}.
+
+\end{itemize}
+
+\subsection{Monitoring}
+
+Also runtime verification.
+
+\begin{itemize}
+
+\item IDS: Had\u ziosmanovi\'c and Sommer. They appear to take advantage of the
+generally highly-regular and predictable nature of many industrial control
+systems while monitoring for anomalies. They apparently test their approach on a
+water treatment plant.
+
+% Note: maybe a broader scope, but it might be fruitful to think of the whole
+% industrial process in which the PLC resides as the system to be verified.
 
 \end{itemize}
 
