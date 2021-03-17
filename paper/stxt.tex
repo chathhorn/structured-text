@@ -1,15 +1,98 @@
-\begin{abstract}
-
-An abstract.
-
-\end{abstract}
+% \begin{abstract}
+% 
+% \end{abstract}
 
 \section{Intro}
 
-What is IEC 61131-3 Structured Text?
+Programmable logic controllers (PLCs) are used for industrial automation in many
+safety- and security-critical contexts. The IEC 61131-3 standard informally
+describes five languages intended for programming PLCs. Three of these are
+graphical---ladder diagrams (LD), function block diagrams (FBD), and sequential
+function charts (SFC)---while two are textual---structured text (ST) and
+instruction lists (IL). And often, PLCs are programmed using a combination of
+these languages. As the scale and complexity of industrial automation grows, so
+do the scale and complexity of these programs. When these programs are deployed
+in a critical role, we would like mathematically-rigorous confidence in their
+correctness.
+
+We will explore techniques for high-assurance PLC programming in the IEC 61131-3
+languages: formal verification of PLC programs or an IEC 61131-3 language
+implementation, model checking, abstract interpretation, or other static or
+dynamic analyses of IEC 61131-3 programs.
 
 \section{Motivation}
 
 \section{Structured Text}
 
 \section{LTL}
+
+\section{Previous work on high-assurance PLC programming}
+
+\subsection{High-assurance programming}
+
+In general, the goal of high-assurance programming techniques is to increase our
+confidence in the correctness of programs. Given that programs are physical
+manifestations of human passions existing in this fallen world, their rightness
+and trueness will always, at best, be questionable. But using careful reasoning
+and various mathematical tools, it is still possible to gain a great deal of
+confidence that a program will never betray our intentions for it.
+
+Through the ages, many such techniques have been developed. One can start simply
+by interrogating the program: if we give it $x$, will it return $y$? What
+about if we give it $z$? But for most progams, the possible state space of
+inputs is so large that testing even a large fraction of them is infeasible. And
+even if every input can be tested, changing the environment the program runs in
+might also affect its behavior. So optimally we would like to go beyond simple
+testing to directly reason about the program itself.
+
+But first: what does it mean for a program to be correct? Even that can be a
+hard question to answer (and bugs can exist in our definition of
+correctness---or our understanding of requirements---just as easily as in the
+program itself).
+
+Anyhow, some techiques:
+
+\begin{itemize}
+
+\item Specification. Spend the time to actually think about what the program
+should do and write it out in some formal (e.g., logic, math, type system) or
+informal way.
+
+\item Redundancy. Implement the program two or more times and compare the
+implementations. Or implement the program once in a programming language and
+another time in a logic or modeling language.
+
+\item Testing.
+
+\item Model checking.
+
+\item Formal verification.
+
+\item Other static or dynamic analysis: control-flow analysis, abstract
+interpretation, type checking, lint checks, runtime verification, monitoring.
+
+\end{itemize}
+
+\subsection{Formal semantics for PLC programming languages}
+
+In order to directly reason about PLC programs, we need to know what they mean
+in some rigorous way. Programming language semantics typicaly fall into three
+camps: denotational, operational, or axiomatic~\cite{hoare:axiomatic}. Each of
+these approaches can be understood as a translation from statements in the
+programming language to its ``meaning'' in terms of some mathematical or logical
+structure. The approaches differ in what that ``meaning'' actually is: algebraic
+objects or domains (denotational semantics), operations on an abstract machine
+(operational), or assertions about how the program state evolves (axiomatic).
+
+Previous work on the semantics of PLC languages includes:
+
+\begin{itemize}
+
+\item Coq semantics: Biha and Blech~\cite{biha:plc_sem1, biha:plc_sem2,
+biha:plc_sem3}.
+
+\item Petri net semantics: Heiner and Menzel~\cite{heiner:petri}. They give a
+semantics for the IL language.
+
+\end{itemize}
+
