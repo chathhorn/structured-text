@@ -210,3 +210,4 @@ ident = do
       xs <- takeWhileP (Just "legal LTL basic term identifier character") isAlphaNum
       space
       pure $ singleton x <> xs
+
