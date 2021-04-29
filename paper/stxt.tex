@@ -4,6 +4,8 @@
 
 \section{Intro}
 
+\paragraph{Stuff.}
+
 Programmable logic controllers (PLCs) are used for industrial automation in many
 safety- and security-critical contexts. The IEC 61131-3 standard informally
 describes five languages intended for programming PLCs. Three of these are
@@ -15,10 +17,43 @@ do the scale and complexity of these programs. When these programs are deployed
 in a critical role, we would like mathematically-rigorous confidence in their
 correctness.
 
-We will explore techniques for high-assurance PLC programming in the IEC 61131-3
-languages: formal verification of PLC programs or an IEC 61131-3 language
-implementation, model checking, abstract interpretation, or other static or
-dynamic analyses of IEC 61131-3 programs.
+\paragraph{Gloss.}
+
+We present a system for runtime verification of PLC programs written in the
+Structured Text language.
+
+We implement our runtime verification system in Haskell.
+
+The context: this project is part of a larger project to develop a ``virutal''
+automation controller. Part of that project included an implementation of the
+IEC 61131-3 Structured Text programming language, which we describe here along
+with our extension to enable built-in runtime verification of Structured Text
+programs.
+
+The high-level design of our runtime verification system follows previous work
+on runtime verification of linear temporal logic (LTL)
+properties~\cite{bauer:rv_ltl}. Authors of Structured Text programs include a
+specification of the program in comments. The specification is a set of LTL
+propositions that refer to global symbols from the program source. Our
+interpreter, then, translates the LTL specification to a B\"uchi automaton which
+is interpreted along with the Sructured Text program.
+
+LTL specifications might appear immediately before or after Structured Text
+function definitions and may refer to either symbols used in the function
+signature or global symbols.
+
+For our purposes, the notion of time used in LTL is interpreted to mean
+consecutive invocations of a function or procedure. 
+
+\begin{enumerate}
+\item Parse the Structured Text source, split out the comments.
+\item Parse the comments for the LTL specification $\phi$.
+\item Translate $\phi$ into the B\"uchi automata $B_\phi$ and $B_{\lnot\phi}$.
+\item Translate $B_\phi$ and $B_{\lnot\phi}$ into finite-state machine $M_\phi$
+\item Minimize the finite-state machine $M_\phi$ into $M'_\phi$.
+\item Interpret both $M'_\phi$ and the Structured Text program (or translate
+both into Python).
+\end{enumerate}
 
 \section{Motivation}
 
@@ -26,52 +61,18 @@ dynamic analyses of IEC 61131-3 programs.
 
 \section{LTL}
 
+``Pnueli’s LTL~\cite{pnueli:ltl} is a well-accepted lineartime temporal logic
+used for specifying properties of infinite traces. In runtime verification, our
+goal is to check LTL properties given finite prefixes of infinite
+traces''~\cite{bauer:rv_ltl}.
+
+\section{B\"uchi automata construction}
+
+\section{Runtime verification of programs}
+
 \section{Previous work on high-assurance PLC programming}
 
 \subsection{High-assurance programming}
-
-In general, the goal of high-assurance programming techniques is to increase our
-confidence in the correctness of programs. Given that programs are physical
-manifestations of human passions existing in this fallen world, their rightness
-and trueness will always, at best, be questionable. But using careful reasoning
-and various mathematical tools, it is still possible to gain a great deal of
-confidence that a program will never betray our intentions for it.
-
-Through the ages, many such techniques have been developed. One can start simply
-by interrogating the program: if we give it $x$, will it return $y$? What
-about if we give it $z$? But for most progams, the possible state space of
-inputs is so large that testing even a large fraction of them is infeasible. And
-even if every input can be tested, changing the environment the program runs in
-might also affect its behavior. So optimally we would like to go beyond simple
-testing to directly reason about the program itself.
-
-But first: what does it mean for a program to be correct? Even that can be a
-hard question to answer (and bugs can exist in our definition of
-correctness---or our understanding of requirements---just as easily as in the
-program itself).
-
-Anyhow, some techiques:
-
-\begin{itemize}
-
-\item Specification. Spend the time to actually think about what the program
-should do and write it out in some formal (e.g., logic, math, type system) or
-informal way.
-
-\item Redundancy. Implement the program two or more times and compare the
-implementations. Or implement the program once in a programming language and
-another time in a logic or modeling language.
-
-\item Testing.
-
-\item Model checking.
-
-\item Formal verification.
-
-\item Other static or dynamic analysis: control-flow analysis, abstract
-interpretation, type checking, lint checks, runtime verification, monitoring.
-
-\end{itemize}
 
 \subsection{Formal semantics for PLC programming languages}
 
