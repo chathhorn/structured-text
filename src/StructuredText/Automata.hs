@@ -4,6 +4,7 @@ module StructuredText.Automata
       , union
       , concat
       , intersection
+      , run
       ) where
 
 import Prelude hiding (concat)
@@ -25,25 +26,14 @@ data NFA a = NFA
       , delta  :: Map State (a -> States)
       }
 
--- concatMapSet :: (Ord a, Ord b) => (a -> Set b) -> Set a -> Set b
--- concatMapSet f s = S.unions (S.map f s)
+unionMapSet :: (Ord a, Ord b) => (a -> Set b) -> Set a -> Set b
+unionMapSet f s = S.unions (S.map f s)
 
--- fize :: (Eq a, Eq b, Ord c) => Set (a, b, c) -> a -> b -> Set c
--- fize s a b = S.map thrd (S.filter (\ x -> fst3 x == a && snd3 x == b) s)
---       where fst3 :: (a, b, c) -> a
---             fst3 (a, _, _) = a
--- 
---             snd3 :: (a, b, c) -> b
---             snd3 (_, b, _) = b
--- 
---             thrd :: (a, b, c) -> c
---             thrd (_, _, c) = c
-
--- run :: Eq a => NFA a -> [a] -> States
--- run nfa as = run' nfa as (inits nfa)
---       where run' :: Eq a => NFA a -> [a] -> States -> States
---             run' nfa (a : as) s = run' nfa as (concatMapSet (delta nfa a) s)
---             run' _ []         s = s
+-- Executes an NFA. Takes a stream of inputs and produces a stream of state-sets.
+run :: Eq a => NFA a -> [a] -> [States]
+run aut (a : as) = inits aut : run aut {inits = unionMapSet (flip d a) (inits aut)} as
+      where d s = M.findWithDefault (const S.empty) s (delta aut)
+run _   []       = []
 
 -- A perhaps more convenient NFA constructor:
 -- init states,
