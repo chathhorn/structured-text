@@ -8,16 +8,9 @@
 
 Programmable logic controllers (PLCs) are used for industrial automation in many
 safety- and security-critical contexts. The IEC 61131-3 standard informally
-describes five languages intended for programming PLCs. Three of these are
-graphical---ladder diagrams (LD), function block diagrams (FBD), and sequential
-function charts (SFC)---while two are textual---structured text (ST) and
-instruction lists (IL). And often, PLCs are programmed using a combination of
-these languages. As the scale and complexity of industrial automation grows, so
-do the scale and complexity of these programs. When these programs are deployed
-in a critical role, we would like mathematically-rigorous confidence in their
-correctness.
-
-\paragraph{Gloss.}
+describes five languages intended for programming PLCs, one of which is
+Structured Text (ST). As the scale and complexity of industrial automation grows, so
+do the scale and complexity of these programs.
 
 We present a system for runtime verification of PLC programs written in the
 Structured Text language.
@@ -41,9 +34,6 @@ is interpreted along with the Sructured Text program.
 LTL specifications might appear immediately before or after Structured Text
 function definitions and may refer to either symbols used in the function
 signature or global symbols.
-
-For our purposes, the notion of time used in LTL is interpreted to mean
-consecutive invocations of a function or procedure. 
 
 \begin{enumerate}
 \item Parse the Structured Text source, split out the comments.
@@ -140,6 +130,11 @@ water treatment plant.
 
 % Note: maybe a broader scope, but it might be fruitful to think of the whole
 % industrial process in which the PLC resides as the system to be verified.
+
+\item LTL for RV: Bauer et al~\cite{bauer:rv_ltl}. They describe the tranformation from LTL
+to B\"uchi automata for runtime monitoring (as opposed to model checking).
+
+\item LTL to B\"uchi: Vardi~\cite{vardi:ltl_at}.
 
 \end{itemize}
 
