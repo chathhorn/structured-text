@@ -4,8 +4,6 @@
 
 \section{Intro}
 
-\paragraph{Stuff.}
-
 Programmable logic controllers (PLCs) are used for industrial automation in many
 safety- and security-critical contexts. The IEC 61131-3 standard informally
 describes five languages intended for programming PLCs, one of which is
@@ -15,13 +13,15 @@ do the scale and complexity of these programs.
 We present a system for runtime verification of PLC programs written in the
 Structured Text language.
 
-We implement our runtime verification system in Haskell.
-
 The context: this project is part of a larger project to develop a ``virutal''
 automation controller. Part of that project included an implementation of the
 IEC 61131-3 Structured Text programming language, which we describe here along
 with our extension to enable built-in runtime verification of Structured Text
 programs.
+
+\paragraph{Contributions}
+
+\section{Design}
 
 The high-level design of our runtime verification system follows previous work
 on runtime verification of linear temporal logic (LTL)
@@ -31,9 +31,7 @@ propositions that refer to global symbols from the program source. Our
 interpreter, then, translates the LTL specification to a B\"uchi automaton which
 is interpreted along with the Sructured Text program.
 
-LTL specifications might appear immediately before or after Structured Text
-function definitions and may refer to either symbols used in the function
-signature or global symbols.
+We implement our runtime verification system in Haskell.
 
 \begin{enumerate}
 \item Parse the Structured Text source, split out the comments.
@@ -44,8 +42,6 @@ signature or global symbols.
 \item Interpret both $M'_\phi$ and the Structured Text program (or translate
 both into Python).
 \end{enumerate}
-
-\section{Motivation}
 
 \section{Structured Text}
 
@@ -135,6 +131,8 @@ water treatment plant.
 to B\"uchi automata for runtime monitoring (as opposed to model checking).
 
 \item LTL to B\"uchi: Vardi~\cite{vardi:ltl_at}.
+
+\item RV for Machine Control Applications (MCAs): Jansen~\cite{jansen:master}.
 
 \end{itemize}
 
