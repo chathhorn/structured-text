@@ -38,13 +38,14 @@ dual form = case form of
 --condition (Ord (NormLTL a)) needed for Set operations, added "deriving Ord" to NormLTL
 subformulas :: (Ord (NormLTL a)) => NormLTL a -> Set (NormLTL a)
 subformulas ltl = case ltl of
-     TermN a    -> S.singleton (TermN a)
-     AndN a b   -> S.unions [S.singleton (AndN a b),   (subformulas a), (subformulas b)]
-     OrN a b    -> S.unions [S.singleton (OrN a b),    (subformulas a), (subformulas b)]
-     UntilN a b -> S.unions [S.singleton (UntilN a b), (subformulas a), (subformulas b)]
-     NextN a    -> S.union  (S.singleton (NextN a))    (subformulas a)
-     NegN a     -> S.union  (S.singleton (NegN a))     (subformulas a) 
-     _          -> S.empty
+     TermN a      -> S.singleton (TermN a)
+     AndN a b     -> S.unions [S.singleton (AndN a b),   (subformulas a), (subformulas b)]
+     OrN a b      -> S.unions [S.singleton (OrN a b),    (subformulas a), (subformulas b)]
+     UntilN a b   -> S.unions [S.singleton (UntilN a b), (subformulas a), (subformulas b)]
+     ReleaseN a b -> S.unions [S.singleton (ReleaseN a b), (subformulas a), (subformulas b)]    
+     NextN a      -> S.union  (S.singleton (NextN a))    (subformulas a)
+     NegN a       -> S.union  (S.singleton (NegN a))     (subformulas a) 
+     _            -> S.empty
 
 allUntils :: Set (NormLTL a) -> Set (NormLTL a)
 allUntils formula = S.filter (\xs -> case xs of

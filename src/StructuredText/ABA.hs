@@ -5,7 +5,7 @@ module StructuredText.ABA
       , children
       , acceptRun
       , formulaRun     
-      , aba1, set1, set2, set3, bs1
+      , aba1, set1, set2, set3, bs1, bs2, bs3
       ) where
 
 import Prelude hiding (concat)
@@ -23,27 +23,29 @@ data B s = BTrue
          | BTerm s
          | BAnd (B s) (B s)
          | BOr (B s) (B s)
-     deriving (Show, Eq) 
+     deriving (Show)
 
---Where/how can I indicate that any disjunction with True is equivalent to True and that any conjunction with False is equivalent to False?
---If done, then wouldn't need so many cases for satisfy function
+instance Eq (B s) where
+     BAnd BFalse _ == BFalse  = True
+     BAnd _ BFalse == BFalse  = True
+     BOr BTrue _   == BTrue   = True
+     BOr _ BTrue   == BTrue   = True
+       
+simplify :: B s -> B s
+simplify (BAnd BFalse _) = BFalse
+simplify (BAnd _ BFalse) = BFalse
+simplify (BOr BTrue _)   = BTrue
+simplify (BOr _ BTrue)   = BTrue
+simplify ltl             = ltl
 --Also want to specify "rules" such as "r and r equiv r"
 
 satisfy :: (Ord s) => B s -> Set s -> Bool
 satisfy formula set = case formula of
-        BTrue          -> True
-        BFalse         -> False
-        BTerm b'       -> S.member b' set
-        --BAnd BFalse _ -> False --Should this be here?
-        --BAnd _ BFalse -> False --How to combine with case above? 
-        --BAnd b1 b2     -> (satisfy b1 set) && (satisfy b2 set) 
-        BAnd b1 b2     | (b1 == BFalse) || (b2 == BFalse) -> False
-                       | otherwise -> (satisfy b1 set) && (satisfy b2 set)
-        BOr b1 b2      | (b1 == BTrue) || (b2 == BTrue) -> True
-                       | otherwise -> (satisfy b1 set) || (satisfy b2 set)
-        --BOr BTrue _   -> True --Should this be here?
-        --BOr _ BTrue   -> True --How to combine with case above?
-        --BOr b1 b2      -> (satisfy b1 set) || (satisfy b2 set)   
+     BTrue          -> True
+     BFalse         -> False
+     BTerm b'       -> S.member b' set
+     BAnd b1 b2     -> (satisfy b1 set) && (satisfy b2 set)
+     BOr b1 b2      -> (satisfy b1 set) || (satisfy b2 set)
 
 children :: (Ord s) => B s -> Set s -> Set (Set s)
 children formula atoms = S.filter (satisfy formula) (S.powerSet atoms)
@@ -63,21 +65,21 @@ deltaP delta t a = case t of
         BTrue -> BTrue
         BFalse -> BFalse
         BTerm s -> delta s a
-        BAnd b1 b2 -> BAnd (deltaP delta b1 a) (deltaP delta b2 a)
-        BOr b1 b2 -> BOr (deltaP delta b1 a) (deltaP delta b2 a)
+        BAnd b1 b2 -> BAnd (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
+        BOr b1 b2 -> BOr (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
 
 --Currently, computing formula-run and then checking whether or not accepted by ABA. In practice, better to compute this level's formula, check if it's satisfiable, then compute next level's formula. If formula equivalent to true (or false), can actually stop run
 
 formulaRun :: (Ord s, Ord a) => ABA s a -> [a] -> [B s]
 formulaRun aut word = case word of          
-     [a]      -> start aut: [deltaP (delta aut) (start aut) a]
-     (a : as) -> start aut: formulaRun aut{start = deltaP (delta aut) (start aut) a} as 
+     [a]      -> simplify(start aut): [simplify (deltaP (delta aut) (start aut) a)]
+     (a : as) -> simplify(start aut): formulaRun aut{start = deltaP (delta aut) (start aut) a} as 
      []       -> [] 
 
 acceptRun :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
 acceptRun aut word = case word of
-     []  -> True
-     (a) -> not (S.null (children (Data.List.last (formulaRun aut word)) (final aut))) --accept condition for finite words
+     []    -> True
+     (a:_) -> not (S.null (children (Data.List.last (formulaRun aut word)) (final aut))) --accept condition for finite words
 
 --for testing
 
@@ -101,3 +103,9 @@ set3 = S.fromList ['s', 't', 'u']
 
 bs1 :: B Char
 bs1 = BAnd (BTerm 'r') (BOr (BTerm 's') (BTerm 't'))
+
+bs2 :: B Char
+bs2 = BOr BTrue (BTerm 'r')
+
+bs3 :: B Char
+bs3 = BAnd BFalse (BTerm 'r')
