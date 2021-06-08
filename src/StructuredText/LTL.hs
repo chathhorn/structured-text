@@ -116,7 +116,7 @@ data NormLTL a = TermN a
                | ReleaseN (NormLTL a) (NormLTL a)
                | NextN (NormLTL a)
                | NegN (NormLTL a)
-      deriving (Eq, Show)
+      deriving (Eq, Show, Ord)
 
 instance Pretty a => Pretty (NormLTL a) where
       pretty = \ case
