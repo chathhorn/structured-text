@@ -1,6 +1,8 @@
 module StructuredText.ABA
       ( ABA (..)
       , B (..)
+      , simplify
+      , simplifyLTL
       , satisfy
       , children
       , acceptRun
@@ -16,28 +18,42 @@ import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
 import Data.List (last)
 import Text.Show.Functions
-import StructuredText.LTL (atoms)
+import StructuredText.LTL
 
 data B s = BTrue
          | BFalse
          | BTerm s
          | BAnd (B s) (B s)
          | BOr (B s) (B s)
-     deriving (Show)
+     deriving (Show, Ord, Eq)
 
+{-
 instance Eq (B s) where
      BAnd BFalse _ == BFalse  = True
      BAnd _ BFalse == BFalse  = True
      BOr BTrue _   == BTrue   = True
      BOr _ BTrue   == BTrue   = True
-       
-simplify :: B s -> B s
+-}
+--want to specify behavior when taking boolean combination of NormLTL formulas as opposed to other types
+--possible to do cases based on the TYPE of s, not the pattern?
+simplifyLTL :: (Eq a) => B (NormLTL a) -> B (NormLTL a)
+simplifyLTL (BAnd (BTerm a) (BTerm (NegN b))) | (a == b) = BFalse
+                                              | otherwise = BAnd (BTerm a) (BTerm (NegN b))
+simplifyLTL (BOr (BTerm a) (BTerm (NegN b)))  | (a == b) = BTrue      
+                                              | otherwise = BOr (BTerm a) (BTerm (NegN b))
+ 
+simplify :: (Eq s) => B s -> B s
 simplify (BAnd BFalse _) = BFalse
 simplify (BAnd _ BFalse) = BFalse
+simplify (BAnd BTrue b)  = b
+simplify (BAnd b BTrue)  = b
+simplify (BAnd b1 b2)    | (b1 == b2) = b1
 simplify (BOr BTrue _)   = BTrue
 simplify (BOr _ BTrue)   = BTrue
+simplify (BOr BFalse b)  = b
+simplify (BOr b BFalse)  = b
+simplify (BOr b1 b2)     | (b1 == b2) = b1
 simplify ltl             = ltl
---Also want to specify "rules" such as "r and r equiv r"
 
 satisfy :: (Ord s) => B s -> Set s -> Bool
 satisfy formula set = case formula of
@@ -47,16 +63,15 @@ satisfy formula set = case formula of
      BAnd b1 b2     -> (satisfy b1 set) && (satisfy b2 set)
      BOr b1 b2      -> (satisfy b1 set) || (satisfy b2 set)
 
+--take powerSet of states s, filter based on whether or not satisfy formula f
 children :: (Ord s) => B s -> Set s -> Set (Set s)
 children formula atoms = S.filter (satisfy formula) (S.powerSet atoms)
 
---take powerSet of states s, filter based on whether or not satisfy formula f
-
 data ABA state alph = ABA
-      { states :: Set state
-      , start  :: B state -- BTerm s
-      , final  :: Set state
-      , delta  :: state -> alph -> B state
+      { statesABA :: Set state
+      , initABA   :: B state -- BTerm s
+      , finalABA  :: Set state
+      , deltaABA  :: state -> alph -> B state
       }
 
 --Expands transition function to (B s, a) -> B s 
@@ -70,16 +85,18 @@ deltaP delta t a = case t of
 
 --Currently, computing formula-run and then checking whether or not accepted by ABA. In practice, better to compute this level's formula, check if it's satisfiable, then compute next level's formula. If formula equivalent to true (or false), can actually stop run
 
+--Need to have a separate formulaRunLTL function?
+
 formulaRun :: (Ord s, Ord a) => ABA s a -> [a] -> [B s]
 formulaRun aut word = case word of          
-     [a]      -> simplify(start aut): [simplify (deltaP (delta aut) (start aut) a)]
-     (a : as) -> simplify(start aut): formulaRun aut{start = deltaP (delta aut) (start aut) a} as 
+     [a]      -> simplify(initABA aut): [simplify (deltaP (deltaABA aut) (initABA aut) a)]
+     (a : as) -> simplify(initABA aut): formulaRun aut{initABA = deltaP (deltaABA aut) (initABA aut) a} as 
      []       -> [] 
 
 acceptRun :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
 acceptRun aut word = case word of
      []    -> True
-     (a:_) -> not (S.null (children (Data.List.last (formulaRun aut word)) (final aut))) --accept condition for finite words
+     (a:_) -> not (S.null (children (Data.List.last (formulaRun aut word)) (finalABA aut))) --accept condition for finite words
 
 --for testing
 
@@ -90,7 +107,7 @@ tran_func :: Char -> Integer -> B Char
 tran_func s a =  M.findWithDefault BFalse (s, a) tran 
 
 aba1 :: ABA Char Integer
-aba1 = ABA{states = S.fromList['r','s','t'], start = BTerm 's', final = S.fromList['t'], delta = tran_func}
+aba1 = ABA{statesABA = S.fromList['r','s','t'], initABA = BTerm 's', finalABA = S.fromList['t'], deltaABA = tran_func}
 
 set1 :: Set Char
 set1 = S.fromList ['r', 's', 't'] 
