@@ -5,7 +5,7 @@ module StructuredText.ABA
       , simplifyLTL
       , satisfy
       , children
-      , acceptRun
+      , acceptABA
       , formulaRun     
       , aba1, set1, set2, set3, bs1, bs2, bs3
       ) where
@@ -19,6 +19,7 @@ import Data.Maybe (fromMaybe)
 import Data.List (last)
 import Text.Show.Functions
 import StructuredText.LTL
+import Test.QuickCheck (oneof, sized, Arbitrary (..), Gen (..))
 
 data B s = BTrue
          | BFalse
@@ -27,13 +28,23 @@ data B s = BTrue
          | BOr (B s) (B s)
      deriving (Show, Ord, Eq)
 
-{-
-instance Eq (B s) where
-     BAnd BFalse _ == BFalse  = True
-     BAnd _ BFalse == BFalse  = True
-     BOr BTrue _   == BTrue   = True
-     BOr _ BTrue   == BTrue   = True
+instance Arbitrary (B s) where
+     arbitrary = sized arbB
+
+arbB :: Int -> Gen (B s)
+arbB 0 = oneof [pure BTrue, pure BFalse]
+arb n = do
+     a <- arbB (n - 1)
+     b <- arbB (n - 1)
+     oneof [pure (BAnd a b), pure (BOr a b)]
+
+{- instance Eq (B s) where
+ -  BAnd BFalse _ == BFalse  = True
+ -  BAnd _ BFalse == BFalse  = True
+ -  BOr BTrue _   == BTrue   = True
+ -  BOr _ BTrue   == BTrue   = True 
 -}
+
 --want to specify behavior when taking boolean combination of NormLTL formulas as opposed to other types
 --possible to do cases based on the TYPE of s, not the pattern?
 simplifyLTL :: (Eq a) => B (NormLTL a) -> B (NormLTL a)
@@ -45,14 +56,14 @@ simplifyLTL (BOr (BTerm a) (BTerm (NegN b)))  | (a == b) = BTrue
 simplify :: (Eq s) => B s -> B s
 simplify (BAnd BFalse _) = BFalse
 simplify (BAnd _ BFalse) = BFalse
-simplify (BAnd BTrue b)  = b
-simplify (BAnd b BTrue)  = b
-simplify (BAnd b1 b2)    | (b1 == b2) = b1
+simplify (BAnd BTrue b)  = simplify b
+simplify (BAnd b BTrue)  = simplify b
+simplify (BAnd b1 b2)    | (b1 == b2) = simplify b1
 simplify (BOr BTrue _)   = BTrue
 simplify (BOr _ BTrue)   = BTrue
-simplify (BOr BFalse b)  = b
-simplify (BOr b BFalse)  = b
-simplify (BOr b1 b2)     | (b1 == b2) = b1
+simplify (BOr BFalse b)  = simplify b
+simplify (BOr b BFalse)  = simplify b
+simplify (BOr b1 b2)     | (b1 == b2) = simplify b1
 simplify ltl             = ltl
 
 satisfy :: (Ord s) => B s -> Set s -> Bool
@@ -89,15 +100,32 @@ deltaP delta t a = case t of
 
 formulaRun :: (Ord s, Ord a) => ABA s a -> [a] -> [B s]
 formulaRun aut word = case word of          
-     [a]      -> simplify(initABA aut): [simplify (deltaP (deltaABA aut) (initABA aut) a)]
      (a : as) -> simplify(initABA aut): formulaRun aut{initABA = deltaP (deltaABA aut) (initABA aut) a} as 
-     []       -> [] 
+     []       -> [simplify (initABA aut)] 
 
-acceptRun :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
-acceptRun aut word = case word of
-     []    -> True
-     (a:_) -> not (S.null (children (Data.List.last (formulaRun aut word)) (finalABA aut))) --accept condition for finite words
+acceptABA :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
+acceptABA aut word = not (S.null (children (Data.List.last (formulaRun aut word)) (finalABA aut))) --accept condition for finite words
 
+{-
+
+ABARun :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
+
+?? Want function to take in next letter of word, use it to compute the next boolean expression. If the boolean expression is equivalent to either true or false, terminate and return that boolean value, otherwise keep going. After intaking all letters of the word, return whether or not last boolean expression has children ??
+
+ABARun aut word = until (isTrueorFalse) (deltaP (deltaABA aut)) (initABA aut)
+    where formulaRun :: (Ord s, Ord a) => ABA s a -> [a] -> [B s]
+    ...
+ 
+ -}
+
+isTrueorFalse :: (Eq s) => B s -> Bool
+isTrueorFalse b = case (simplify b) of
+     BTrue      -> True
+     BFalse     -> True
+     BTerm b'   -> False
+     BOr b1 b2  -> False
+     BAnd b1 b2 -> False
+         
 --for testing
 
 tran :: Map (Char, Integer) (B Char)

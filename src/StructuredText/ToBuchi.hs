@@ -78,7 +78,7 @@ toABA ltl = ABA { statesABA = negSub
 boolAnd :: (Eq s) => B s -> B s -> B s
 boolAnd b1 b2 = simplify (BAnd b1 b2)
 
-toBuchi :: forall s. (forall a. (Ord a, Ord s, Ord (B s), Ord (NormLTL a)) => ABA s a -> NBA (Set s, Set s) a)
+toBuchi :: (Ord a, Ord s, Ord (B s), Ord (NormLTL a)) => ABA s a -> NBA (Set s, Set s) a
 toBuchi aba = NBA { statesNBA = states
                   , initsNBA  = S.singleton (S.singleton (extract (initABA aba)), S.empty) --initABA saved as BTerm s, need just s
                   , finalNBA  = S.cartesianProduct (S.singleton S.empty) (S.powerSet (statesABA aba))
