@@ -32,8 +32,8 @@ unionMapSet f s = S.unions (S.map f s)
 -- Executes an NFA. Takes a stream of inputs and produces a stream of state-sets.
 run :: Eq a => NFA a -> [a] -> [States]
 run aut (a : as) = inits aut : run aut {inits = unionMapSet (flip d a) (inits aut)} as
-      where d s = M.findWithDefault (const S.empty) s (delta aut)
-run _   []       = []
+       where d s = M.findWithDefault (const S.empty) s (delta aut)
+run aut []       = [inits aut]
 
 -- A perhaps more convenient NFA constructor:
 -- init states,
