@@ -1,8 +1,4 @@
-// LTL: [] (
-            {not is_breaker_open and meter_va > thresh} ->
-                  () {threshold}
-      )
-
+// LTL: [] ( {not is_breaker_open and meter_va > thresh} -> () {threshold})
 FUNCTION THRESHOLD : BOOL
       VAR_INPUT
             meter_va : INT;
