@@ -1,5 +1,6 @@
 module StructuredText.Buchi
       ( NBA (..)
+      , runNBA
       , acceptNBA 
       ) where
 
