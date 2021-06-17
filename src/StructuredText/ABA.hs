@@ -32,8 +32,8 @@ instance Arbitrary (B s) where
      arbitrary = sized arbB
 
 arbB :: Int -> Gen (B s)
-arbB 0 = oneof [pure BTrue, pure BFalse]
-arb n = do
+arbB 0 = oneof [pure BTrue, pure BFalse] 
+arbB n = do
      a <- arbB (n - 1)
      b <- arbB (n - 1)
      oneof [pure (BAnd a b), pure (BOr a b)]
@@ -107,15 +107,12 @@ acceptABA :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
 acceptABA aut word = not (S.null (children (Data.List.last (formulaRun aut word)) (finalABA aut))) --accept condition for finite words
 
 {-
-
-ABARun :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
-
+ -ABARun :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
 ?? Want function to take in next letter of word, use it to compute the next boolean expression. If the boolean expression is equivalent to either true or false, terminate and return that boolean value, otherwise keep going. After intaking all letters of the word, return whether or not last boolean expression has children ??
 
 ABARun aut word = until (isTrueorFalse) (deltaP (deltaABA aut)) (initABA aut)
     where formulaRun :: (Ord s, Ord a) => ABA s a -> [a] -> [B s]
     ...
- 
  -}
 
 isTrueorFalse :: (Eq s) => B s -> Bool
