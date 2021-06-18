@@ -3,11 +3,8 @@
 module StructuredText.ToBuchi 
       ( toABA
       , toBuchi
-      , dual
-      , subformulas
-      , boolAnd
-      , ltl1, ltl2, ltlVardi, ltl4
-      , boolset, bool1
+      , ltlVardi
+      , phi, aba, nba1, nba2, o, p, r
       ) where
 
 import StructuredText.Automata (NFA, nfa)
@@ -16,6 +13,10 @@ import StructuredText.ABA (ABA (..), B (..), satisfy, simplify)
 import StructuredText.Buchi (NBA (..))
 import Data.Set (Set)
 import qualified Data.Set as S
+import Data.List (find)
+
+import Debug.Trace (trace)
+
 --import Data.Map.Strict (Map)
 --import qualified Data.Map.Strict as M  
 
@@ -99,11 +100,48 @@ toBuchi aba = NBA { statesNBA = states
            tfilter2 (u, v) alph (u', v') (x, y) | (S.null u) = satisfy (bigAnd v alph) y
                                                              && u' == S.difference y (finalABA aba)
                                                              && v' == S.intersection y (finalABA aba)         
-                                                 | otherwise  = satisfy (bigAnd u alph) x
+                                                | otherwise  = satisfy (bigAnd u alph) x
                                                              && satisfy (bigAnd v alph) y
                                                              && u' == S.difference x (finalABA aba)
                                                              && v' == S.union y (S.intersection x (finalABA aba))         
                     
+           --bigAnd :: Set s -> a -> B s
+           bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)                 
+
+--trying to make toBuchi more efficient
+
+toBuchi2 :: (Ord a, Ord s, Ord (B s), Ord (NormLTL a)) => ABA s a -> NBA (Set s, Set s) a
+toBuchi2 aba = NBA { statesNBA = states
+                  , initsNBA  = S.singleton (S.singleton (extract (initABA aba)), S.empty) --initABA saved as BTerm s, need just s
+                  , finalNBA  = S.cartesianProduct (S.singleton S.empty) (S.powerSet (statesABA aba))
+                  , deltaNBA  = transition
+                  }
+     where powerset = S.powerSet (statesABA aba)	
+           
+           states = S.cartesianProduct powerset powerset
+           
+           extract :: B s -> s
+           extract (BTerm b) = b
+
+           --transition :: (Set s, Set s) -> a -> Set ((Set s, Set s))           
+           transition (u, v) alph = S.filter (tfilter (u, v) alph) states          
+          
+           --tfilter :: (Set s, Set s) -> a -> (Set s, Set s) -> Bool
+           tfilter (u, v) alph (u', v') | (u == S.empty && find (tfilter2' v alph (u',v')) powerset == Nothing) = False
+                                        | (not (u == S.empty) && find (tfilter2 (u,v) alph (u',v')) states == Nothing) = False
+                                        | otherwise = True
+ 
+           --tfilter2 :: (Set s, Set s) -> a -> (Set s, Set s) -> (Set s, Set s) -> Bool                            
+           tfilter2 (u, v) alph (u', v') (x, y) = satisfy (bigAnd u alph) x
+                                                && satisfy (bigAnd v alph) y
+                                                && u' == S.difference x (finalABA aba)
+                                                && v' == S.union y (S.intersection x (finalABA aba))         
+          
+           --tfilter2' :: Set s -> a -> (Set s, Set s) -> Set s -> Bool
+           tfilter2' v alph (u', v') y = satisfy (bigAnd v alph) y
+                                       && u' == S.difference y (finalABA aba)
+                                       && v' == S.intersection y (finalABA aba)         
+           
            --bigAnd :: Set s -> a -> B s
            bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)                 
 
@@ -117,6 +155,19 @@ ltl2 = AndN (TermN 'r') (TermN 't')
 
 ltlVardi :: NormLTL Char
 ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
+
+phi :: NormLTL Char
+phi = NextN (TermN 'p')
+
+aba = toABA phi
+
+nba1 = toBuchi aba
+
+nba2 = toBuchi2 aba
+
+o = S.empty
+p = S.singleton 'p'
+r = S.fromList ['p', 'q']
 
 ltl4 :: NormLTL Char
 ltl4 = NegN ((NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q'))
