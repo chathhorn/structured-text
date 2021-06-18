@@ -76,11 +76,11 @@ satisfy formula set = case formula of
      BOr b1 b2      -> (satisfy b1 set) || (satisfy b2 set)
 
 --is the given formula satisfied by any subset of the atoms?
-satisfiable :: (Ord s) => B s -> Set s -> Bool
-satisfiable formula atoms | find (satisfy (simplify formula)) (S.powerSet atoms) == Nothing = False
-                          | otherwise = True
+satisfied :: (Ord s) => B s -> Set s -> Bool
+satisfied formula atoms | find (satisfy (simplify formula)) (S.powerSet atoms) == Nothing = False
+                        | otherwise = True
 
---what are all subsets of atoms that satisfy the formule?
+--what are all subsets of atoms that satisfy the formula?
 children :: (Ord s) => B s -> Set s -> Set (Set s)
 children formula atoms = S.filter (satisfy (simplify formula)) (S.powerSet atoms)
 
@@ -100,15 +100,15 @@ deltaP delta t a = case t of
         BAnd b1 b2 -> BAnd (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
         BOr b1 b2 -> BOr (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
 
--- Want function to take in next letter of word, use it to compute the next boolean expression. If the boolean expression is equivalent to either true or false, terminate and return that boolean value, otherwise keep going. After intaking all letters of the word, return whether or not last boolean expression has children ??
-
+--does the ABA aut accept the input word?
+--if boolean expression BTrue, accept; if BFalse; reject; else continue run
 acceptABA :: (Ord s, Ord a) => ABA s a -> [a] -> Bool
 acceptABA aut (a : as) = case next_state of
      BTrue     -> True
      BFalse    -> False
      otherwise -> acceptABA aut{initABA = next_state} as
      where next_state = simplify (deltaP (deltaABA aut) (initABA aut) a)
-acceptABA aut [] = satisfiable (initABA aut) (finalABA aut)      
+acceptABA aut [] = satisfied (initABA aut) (finalABA aut)      
 
 --sequence of B s expressions for a word through an ABA aut
 formulaRun :: (Ord s, Ord a) => ABA s a -> [a] -> [B s]
@@ -119,7 +119,7 @@ formulaRun aut word = case word of
 --is word accepted by automata? what is its formula-run?
 --uses formulaRun so entire run is generated
 acceptABAwithRun :: (Ord s, Ord a) => ABA s a -> [a] -> (Bool, [B s])
-acceptABAwithRun aut word = (satisfiable (Data.List.last run) (finalABA aut), run)
+acceptABAwithRun aut word = (satisfied (Data.List.last run) (finalABA aut), run)
      where run = formulaRun aut word
         
 --for testing
