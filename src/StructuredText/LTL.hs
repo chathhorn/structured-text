@@ -4,18 +4,20 @@ module StructuredText.LTL
       , BasicTerm (..), basicTerm
       , NormLTL (..), normalize
       , AtomicProp (..)
-      , depth, atoms
+      , depth, atoms, atomSet
       ) where
 
 import Data.Text ( Text, singleton )
 import Data.Char ( isAlpha, isAlphaNum )
 import Data.Void ( Void )
+import Data.Set  ( fromList, Set )
 import Text.Megaparsec ( Parsec, (<?>), (<|>), between, empty, takeWhileP, try, satisfy )
 
 import Control.Monad.Combinators.Expr ( makeExprParser, Operator (..) )
 
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Data.Set as S
 
 import Prettyprinter ((<+>), Pretty (..), Doc)
 
@@ -137,6 +139,10 @@ atoms = atoms' 0
                   UntilN e1 e2   -> atoms' n e1 ++ atoms' n e2
                   ReleaseN e1 e2 -> atoms' n e1 ++ atoms' n e2
                   NextN e1       -> atoms' (n + 1) e1
+                  NegN e1        -> atoms' (n + 1) e1
+
+atomSet :: (Ord a) => NormLTL a -> Set a
+atomSet phi = S.fromList (map fst (atoms phi))
 
 depth :: NormLTL a -> Int
 depth ltl = maximum (map snd (atoms ltl)) + 1
