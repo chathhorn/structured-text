@@ -20,7 +20,14 @@ data NBA state alph = NBA
       , initsNBA  :: Set state
       , finalNBA  :: Set state
       , deltaNBA  :: state -> alph -> Set state
-      }
+      } 
+
+{- instance Eq (B s) where
+ -  BAnd BFalse _ == BFalse  = True
+ -  BAnd _ BFalse == BFalse  = True
+ -  BOr BTrue _   == BTrue   = True
+ -  BOr _ BTrue   == BTrue   = True 
+-}
 
 unionMapSet :: (Ord a, Ord b) => (a -> Set b) -> Set a -> Set b
 unionMapSet f s = S.unions (S.map f s)

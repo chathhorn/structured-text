@@ -15,8 +15,6 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import Data.List (find)
 
-import Debug.Trace (trace)
-
 --import Data.Map.Strict (Map)
 --import qualified Data.Map.Strict as M  
 
@@ -110,6 +108,11 @@ toBuchi aba = NBA { statesNBA = states
 
 --trying to make toBuchi more efficient
 
+--does there exist an element of set satisfying condition?
+exists :: (Eq s) => (s -> Bool) -> Set s -> Bool
+exists condition set | find condition set == Nothing = False
+                     | otherwise = True 
+
 toBuchi2 :: (Ord a, Ord s, Ord (B s), Ord (NormLTL a)) => ABA s a -> NBA (Set s, Set s) a
 toBuchi2 aba = NBA { statesNBA = states
                   , initsNBA  = S.singleton (S.singleton (extract (initABA aba)), S.empty) --initABA saved as BTerm s, need just s
@@ -127,9 +130,8 @@ toBuchi2 aba = NBA { statesNBA = states
            transition (u, v) alph = S.filter (tfilter (u, v) alph) states          
           
            --tfilter :: (Set s, Set s) -> a -> (Set s, Set s) -> Bool
-           tfilter (u, v) alph (u', v') | (u == S.empty && find (tfilter2' v alph (u',v')) powerset == Nothing) = False
-                                        | (not (u == S.empty) && find (tfilter2 (u,v) alph (u',v')) states == Nothing) = False
-                                        | otherwise = True
+           tfilter (u, v) alph (u', v') | u == S.empty = exists (tfilter2' v alph (u',v')) powerset
+                                        | otherwise    = exists (tfilter2 (u,v) alph (u',v')) states
  
            --tfilter2 :: (Set s, Set s) -> a -> (Set s, Set s) -> (Set s, Set s) -> Bool                            
            tfilter2 (u, v) alph (u', v') (x, y) = satisfy (bigAnd u alph) x
@@ -145,7 +147,11 @@ toBuchi2 aba = NBA { statesNBA = states
            --bigAnd :: Set s -> a -> B s
            bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)                 
 
---small examples for testing
+--need to defined instance Eq (NBA s a) for this to work
+--toBuchiEquiv :: NormLTL a -> Bool
+--toBuchiEquiv ltl = toBuchi (toABA ltl) == toBuchi2 (toABA ltl)
+
+--TESTING
 
 ltl1 :: NormLTL Char
 ltl1 = NegN (UntilN (TermN 's') (TermN 't')) 

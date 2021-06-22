@@ -1,5 +1,6 @@
 module StructuredText.Testing
-      ( prop_RevRev
+      ( f
+      , prop_RevRev
       , prop_RevApp
       , prop_simpl
       , prop_simpl_sat
@@ -7,7 +8,7 @@ module StructuredText.Testing
       , prop_Vardi
       ) where
 
-import Test.QuickCheck (quickCheck, quickCheckWith, verboseCheck, verboseCheckWith)
+import Test.QuickCheck (quickCheck, quickCheckWith, verboseCheck, verboseCheckWith, Arbitrary, stdArgs, Args)
 import Data.Set (Set)
 import StructuredText.ABA 
       ( B (..)
@@ -16,17 +17,21 @@ import StructuredText.ABA
       , satisfy
       , acceptABA)
 import StructuredText.Buchi (acceptNBA)
-import StructuredText.ToBuchi (toABA, toBuchi, ltlVardi)
+import StructuredText.ToBuchi (toABA, toBuchi, ltlVardi, phi)
 
 --testing quickCheck
-prop_RevRev :: Eq a => [a] -> Bool
+
+prop_RevRev :: (Eq a) => [a] -> Bool
 prop_RevRev xs = reverse (reverse xs) == xs
 
-prop_RevApp :: [Int] -> [Int] -> Bool
+prop_RevApp :: (Eq a) => [a] -> [a] -> Bool
 prop_RevApp xs ys = reverse (xs ++ ys) == reverse ys ++ reverse xs
 
---simplify is idempotent
---needs to be able to generate arbitrary instances of B s
+--passing type argument to properties
+f :: a -> ([a] -> b) -> [a] -> b
+f _ prop = prop 
+
+--simplify is idempotent, applying the function twice gives the same result as applying once
 prop_simpl :: (Eq s) => B s -> Bool
 prop_simpl b = simplify (simplify b) == simplify b
 
