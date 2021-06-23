@@ -16,7 +16,7 @@ import Prelude hiding (concat)
 import qualified Data.Set as S
 import Data.Set (Set)
 import qualified Data.Map.Strict as M
-import Data.Map.Strict (Map)
+import Data.Map.Strict (Map, findWithDefault)
 import Data.Maybe (fromMaybe)
 import Data.List (last, find)
 import Text.Show.Functions
@@ -48,7 +48,7 @@ arbB n = do
 -}
 
 --want to specify behavior when taking boolean combination of NormLTL formulas as opposed to other types
-	--possible to do cases based on the TYPE of s, not the pattern?
+--possible to do cases based on the TYPE of s, not the pattern?
 simplifyLTL :: (Eq a) => B (NormLTL a) -> B (NormLTL a)
 simplifyLTL (BAnd BFalse _) = BFalse
 simplifyLTL (BAnd _ BFalse) = BFalse
@@ -104,17 +104,17 @@ data ABA state alph = ABA
       { statesABA :: Set state
       , initABA   :: B state -- BTerm s
       , finalABA  :: Set state
-      , deltaABA  :: state -> alph -> B state
+      , deltaABA  :: Map (state, alph) (B state)
       }
 
---Expand (s -> a -> B s) to (B s -> a -> B s) 
-deltaP :: (Ord s, Ord a) => (s -> a -> B s) -> (B s -> a -> B s)
+--Expand Map (s, a) (B s) to (B s -> a -> B s)
+deltaP :: (Eq s, Ord s, Ord a) => Map (s, a) (B s) -> B s -> a -> B s
 deltaP delta t a = case t of
-        BTrue -> BTrue
-        BFalse -> BFalse
-        BTerm s -> delta s a
-        BAnd b1 b2 -> BAnd (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
-        BOr b1 b2 -> BOr (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
+     BTrue -> BTrue
+     BFalse -> BFalse
+     BTerm s -> M.findWithDefault BTrue (s, a) delta
+     BAnd b1 b2 -> BAnd (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
+     BOr b1 b2 -> BOr (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
 
 --does the ABA aut accept the input word?
 --if boolean expression BTrue, accept; if BFalse; reject; else continue run
@@ -147,7 +147,7 @@ tran_func :: Char -> Integer -> B Char
 tran_func s a =  M.findWithDefault BFalse (s, a) tran 
 
 aba1 :: ABA Char Integer
-aba1 = ABA{statesABA = S.fromList['r','s','t'], initABA = BTerm 's', finalABA = S.fromList['t'], deltaABA = tran_func}
+aba1 = ABA{statesABA = S.fromList['r','s','t'], initABA = BTerm 's', finalABA = S.fromList['t'], deltaABA = tran}
 
 set1 :: Set Char
 set1 = S.fromList ['r', 's', 't'] 

@@ -1,8 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module StructuredText.ToBuchi 
-      ( toABA
-      , toBuchi
+      ( toBuchi
       , ltlVardi
       , phi, aba, nba1, nba2, o, p, r
       ) where
@@ -11,12 +10,12 @@ import StructuredText.Automata (NFA, nfa)
 import StructuredText.LTL (NormLTL (..))
 import StructuredText.ABA (ABA (..), B (..), satisfy, simplify)
 import StructuredText.Buchi (NBA (..))
+import StructuredText.ToABA (toABA)
 import Data.Set (Set)
 import qualified Data.Set as S
+import Data.Map.Strict (Map, insert)
+import qualified Data.Map.Strict as M
 import Data.List (find)
-
---import Data.Map.Strict (Map)
---import qualified Data.Map.Strict as M  
 
 -- NormLTL a =
 -- | TermN    a
@@ -25,54 +24,6 @@ import Data.List (find)
 -- | UntilN   (NormLTL a) (NormLTL a)
 -- | ReleaseN (NormLTL a) (NormLTL a)
 -- | NextN    (NormLTL a)
--- | NegN     (NormLTL a)
-
-neg :: NormLTL a -> NormLTL a
-neg (NegN s) = s
-neg s        = NegN s
-
-dual :: B (NormLTL a) -> B (NormLTL a)
-dual form = case form of
-        BTrue        -> BFalse
-        BFalse       -> BTrue
-        BTerm b'     -> BTerm (neg b')
-        BAnd b1 b2   -> BOr (dual b1) (dual b2)
-        BOr b1 b2    -> BAnd (dual b1) (dual b2)
-
---condition (Ord (NormLTL a)) needed for Set operations, added "deriving Ord" to NormLTL
-subformulas :: (Ord (NormLTL a)) => NormLTL a -> Set (NormLTL a)
-subformulas ltl = case ltl of
-     TermN a      -> S.singleton (TermN a)
-     AndN a b     -> S.unions [S.singleton (AndN a b),   (subformulas a), (subformulas b)]
-     OrN a b      -> S.unions [S.singleton (OrN a b),    (subformulas a), (subformulas b)]
-     UntilN a b   -> S.unions [S.singleton (UntilN a b), (subformulas a), (subformulas b)]
-     ReleaseN a b -> S.unions [S.singleton (ReleaseN a b), (subformulas a), (subformulas b)]    
-     NextN a      -> S.union  (S.singleton (NextN a))    (subformulas a)
-     NegN a       -> S.union  (S.singleton (NegN a))     (subformulas a) 
-     _            -> S.empty
-
-allUntils :: Set (NormLTL a) -> Set (NormLTL a)
-allUntils formula = S.filter (\xs -> case xs of
-                                       NegN (UntilN _ _) -> True
-                                       _                 -> False) formula
-
-toABA :: (Ord (NormLTL a), Ord a) => NormLTL a -> ABA (NormLTL a) (Set a)
-toABA ltl = ABA { statesABA = negSub
-                , initABA   = BTerm ltl
-                , finalABA  = allUntils negSub
-                , deltaABA  = transition
-                }
-      where negSub = S.union (subformulas ltl) (S.map neg (subformulas ltl))
-                        
-            transition :: (Ord a) => NormLTL a -> Set a -> B (NormLTL a)
-            transition formula a = case formula of
-                 TermN s        -> if S.member s a then BTrue else BFalse
-                 AndN s1 s2     -> BAnd (transition s1 a) (transition s2 a)
-                 OrN s1 s2      -> BOr (transition s1 a) (transition s2 a)
-                 UntilN s1 s2   -> BOr (transition s2 a) (BAnd (transition s1 a) (BTerm (UntilN s1 s2)))
-                 ReleaseN s1 s2 -> transition (NegN (UntilN (NegN s1) (NegN s2))) a --def of ReleaseN in terms of NegN and UntilN 
-                 NextN s        -> BTerm s
-                 NegN s         -> dual (transition s a)
 
 boolAnd :: (Eq s) => B s -> B s -> B s
 boolAnd b1 b2 = simplify (BAnd b1 b2)
@@ -104,7 +55,13 @@ toBuchi aba = NBA { statesNBA = states
                                                              && v' == S.union y (S.intersection x (finalABA aba))         
                     
            --bigAnd :: Set s -> a -> B s
-           bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)                 
+           --bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)                 
+              
+           --bigAnd :: Set s -> a -> B s (deltaABA :: Map (s, a) (B s))
+           bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (mapFunc (deltaABA aba))) alph) set)
+
+           --mapFunc :: Map (s, a) (B s) -> s -> a -> B s
+           mapFunc map s a= M.findWithDefault BTrue (s, a) map
 
 --trying to make toBuchi more efficient
 
@@ -145,7 +102,13 @@ toBuchi2 aba = NBA { statesNBA = states
                                        && v' == S.intersection y (finalABA aba)         
            
            --bigAnd :: Set s -> a -> B s
-           bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)                 
+           --bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)                 
+
+           --bigAnd :: Set s -> a -> B s (deltaABA :: Map (s, a) (B s))
+           bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (mapFunc (deltaABA aba))) alph) set)
+
+           --mapFunc :: Map (s, a) (B s) -> s -> a -> B s
+           mapFunc map s a= M.findWithDefault BTrue (s, a) map
 
 --need to defined instance Eq (NBA s a) for this to work
 --toBuchiEquiv :: NormLTL a -> Bool
