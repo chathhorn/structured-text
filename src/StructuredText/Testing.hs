@@ -17,7 +17,8 @@ import StructuredText.ABA
       , satisfy
       , acceptABA)
 import StructuredText.Buchi (acceptNBA)
-import StructuredText.ToBuchi (toABA, toBuchi, ltlVardi, phi)
+import StructuredText.ToABA (toABA)
+import StructuredText.ToBuchi (toBuchi, ltlVardi, phi)
 
 --testing quickCheck
 
