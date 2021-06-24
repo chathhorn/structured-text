@@ -5,7 +5,7 @@ module StructuredText.Testing
       , prop_simpl
       , prop_simpl_sat
       , prop_aba_nba_equiv
-      , prop_Vardi
+      --, prop_Vardi
       ) where
 
 import Test.QuickCheck (quickCheck, quickCheckWith, verboseCheck, verboseCheckWith, Arbitrary, stdArgs, Args)
@@ -15,10 +15,13 @@ import StructuredText.ABA
       , ABA (..)
       , simplify
       , satisfy
-      , acceptABA)
+      , acceptABA )
 import StructuredText.Buchi (acceptNBA)
 import StructuredText.ToABA (toABA)
-import StructuredText.ToBuchi (toBuchi, ltlVardi, phi)
+import StructuredText.ToBuchi 
+      ( toBuchi
+      --, ltlVardi
+      , phi )
 
 --testing quickCheck
 
@@ -48,4 +51,4 @@ prop_aba_nba_equiv aut word = acceptABA aut word == acceptNBA (toBuchi (aut)) wo
 
 --Vardi ABA and equivalent NBA accept the same strings
 --prop_Vardi :: (Eq a, Ord a, Ord s) => [a] -> Bool
-prop_Vardi word = prop_aba_nba_equiv (toABA ltlVardi) word
+--prop_Vardi word = prop_aba_nba_equiv (toABA ltlVardi) word
