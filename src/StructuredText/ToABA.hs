@@ -4,11 +4,13 @@ module StructuredText.ToABA
       ( toABA
       , funcMap
       , ltlVardi
-      , phi, aba, o, p, r
+      , phi
+      --, aba
+      , o, p, r
       ) where
 
 import StructuredText.Automata (NFA, nfa)
-import StructuredText.LTL (NormLTL (..), atomSet)
+import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atomSet)
 import StructuredText.ABA (ABA (..), B (..), satisfy, simplify)
 import StructuredText.Buchi (NBA (..))
 import Data.Set (Set, null)
@@ -29,17 +31,14 @@ import Data.List (find)
 -- | NextN    (NormLTL a)
 
 --THIS NEEDS TO BE EDITED!!!
-neg :: NormLTL a -> NormLTL a
-neg (NegN s) = s
-neg s        = NegN s
 
-dual :: B (NormLTL a) -> B (NormLTL a)
+dual :: (AtomicProp a) => B (NormLTL a) -> B (NormLTL a)
 dual form = case form of
-        BTrue        -> BFalse
-        BFalse       -> BTrue
-        BTerm b'     -> BTerm (neg b')
-        BAnd b1 b2   -> BOr (dual b1) (dual b2)
-        BOr b1 b2    -> BAnd (dual b1) (dual b2)
+     BTrue        -> BFalse
+     BFalse       -> BTrue
+     BTerm b'     -> BTerm (negNormLTL b')
+     BAnd b1 b2   -> BOr (dual b1) (dual b2)
+     BOr b1 b2    -> BAnd (dual b1) (dual b2)
 
 --condition (Ord (NormLTL a)) needed for Set operations, added "deriving Ord" to NormLTL
 subformulas :: (Ord (NormLTL a)) => NormLTL a -> Set (NormLTL a)
@@ -55,26 +54,27 @@ subformulas ltl = case ltl of
 
 allUntils :: Set (NormLTL a) -> Set (NormLTL a)
 allUntils formula = S.filter (\xs -> case xs of
-                                       NegN (UntilN _ _) -> True
+                                       (ReleaseN _ _) -> True
                                        _                 -> False) formula
 
-toABA :: (Ord (NormLTL a), Ord a) => NormLTL a -> ABA (NormLTL a) (Set a)
+toABA :: (Ord (NormLTL a), Ord a, AtomicProp a) => NormLTL a -> ABA (NormLTL a) (Set a)
 toABA ltl = ABA { statesABA = negSub
                 , initABA   = BTerm ltl
                 , finalABA  = allUntils negSub
                 , deltaABA  = funcMap transition (S.toList (S.cartesianProduct negSub (S.powerSet (atomSet ltl))))
                 }
-      where negSub = S.union (subformulas ltl) (S.map neg (subformulas ltl))
+      where negSub = S.union (subformulas ltl) (S.map negNormLTL (subformulas ltl))
                         
-            transition :: (Ord a) => NormLTL a -> Set a -> B (NormLTL a)
+            transition :: (Ord a, AtomicProp a) => NormLTL a -> Set a -> B (NormLTL a)
             transition formula a = case formula of
                  TermN s        -> if S.member s a then BTrue else BFalse
                  AndN s1 s2     -> BAnd (transition s1 a) (transition s2 a)
                  OrN s1 s2      -> BOr (transition s1 a) (transition s2 a)
                  UntilN s1 s2   -> BOr (transition s2 a) (BAnd (transition s1 a) (BTerm (UntilN s1 s2)))
-                 ReleaseN s1 s2 -> transition (NegN (UntilN (NegN s1) (NegN s2))) a --def of ReleaseN in terms of NegN and UntilN 
+                 ReleaseN s1 s2 -> BAnd (transition s2 a) (BOr (transition s1 a) (BTerm (ReleaseN s1 s2)))
+                 --ReleaseN s1 s2 -> transition (NegN (UntilN (NegN s1) (NegN s2))) a --def of ReleaseN in terms of NegN and UntilN 
                  NextN s        -> BTerm s
-                 NegN s         -> dual (transition s a)
+                 --NegN s         -> dual (transition s a)
 
 funcMap :: (Ord a, Ord b) => (a -> b -> c) -> [(a, b)] -> Map (a, b) c
 funcMap func list = case list of
@@ -84,25 +84,31 @@ funcMap func list = case list of
 --TESTING
 
 ltl1 :: NormLTL Char
-ltl1 = NegN (UntilN (TermN 's') (TermN 't')) 
+ltl1 = undefined
+--ltl1 = NegN (UntilN (TermN 's') (TermN 't')) 
+--ltl1 = ReleaseN (TermN (atNot 's')) (TermN (atNot 't'))
 
 ltl2 :: NormLTL Char
 ltl2 = AndN (TermN 'r') (TermN 't')
 
 ltlVardi :: NormLTL Char
-ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
+ltlVardi = undefined
+--ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
+--ltlVardi = (NextN (TermN (atNot 'p'))) `UntilN` (TermN 'q')
 
 phi :: NormLTL Char
 phi = NextN (TermN 'p')
 
-aba = toABA phi
+--aba = toABA phi
 
 o = S.empty
 p = S.singleton 'p'
 r = S.fromList ['p', 'q']
 
 ltl4 :: NormLTL Char
-ltl4 = NegN ((NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q'))
+ltl4 = undefined
+--ltl4 = NegN ((NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q'))
+--ltl4 = (NextN (TermN 'p')) `ReleaseN` (TermN (atNot 'q'))
 
 boolset :: Set (B Char)
 boolset = S.fromList [BTerm 's', BTerm 'r', BOr (BTerm 't') (BTerm 'u')]

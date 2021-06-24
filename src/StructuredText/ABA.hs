@@ -20,7 +20,7 @@ import Data.Map.Strict (Map, findWithDefault)
 import Data.Maybe (fromMaybe)
 import Data.List (last, find)
 import Text.Show.Functions
-import StructuredText.LTL
+import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL)
 import Test.QuickCheck (oneof, sized, Arbitrary (..), Gen (..))
 
 data B s = BTrue
@@ -49,7 +49,7 @@ arbB n = do
 
 --want to specify behavior when taking boolean combination of NormLTL formulas as opposed to other types
 --possible to do cases based on the TYPE of s, not the pattern?
-simplifyLTL :: (Eq a) => B (NormLTL a) -> B (NormLTL a)
+simplifyLTL :: (Eq a, AtomicProp a) => B (NormLTL a) -> B (NormLTL a)
 simplifyLTL (BAnd BFalse _) = BFalse
 simplifyLTL (BAnd _ BFalse) = BFalse
 simplifyLTL (BAnd BTrue b)  = simplify b
@@ -61,10 +61,10 @@ simplifyLTL (BOr BFalse b)  = simplify b
 simplifyLTL (BOr b BFalse)  = simplify b
 simplifyLTL (BOr b1 b2)     | (b1 == b2) = simplify b1
 simplifyLTL ltl             = ltl
-simplifyLTL (BAnd (BTerm a) (BTerm (NegN b))) | (a == b) = BFalse
-                                              | otherwise = BAnd (BTerm a) (BTerm (NegN b))
-simplifyLTL (BOr (BTerm a) (BTerm (NegN b)))  | (a == b) = BTrue      
-                                              | otherwise = BOr (BTerm a) (BTerm (NegN b))
+simplifyLTL (BAnd (BTerm a) (BTerm b)) | (a == negNormLTL b) = BFalse
+                                       | otherwise = BAnd (BTerm a) (BTerm b)
+simplifyLTL (BOr (BTerm a) (BTerm b))  | (a == negNormLTL b) = BTrue      
+                                       | otherwise = BOr (BTerm a) (BTerm b)
 
 simplify :: (Eq s) => B s -> B s
 simplify (BAnd BFalse _) = BFalse

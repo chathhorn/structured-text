@@ -2,7 +2,7 @@ module StructuredText.LTL
       ( parseLtl
       , LTL (..)
       , BasicTerm (..), basicTerm
-      , NormLTL (..), normalize
+      , NormLTL (..), negNormLTL, normalize
       , AtomicProp (..)
       , depth, atoms, atomSet
       ) where
@@ -28,6 +28,13 @@ class AtomicProp a where
       atNot :: a -> a
       atFalse :: a
       atFalse = atNot atTrue
+
+--NOT SURE WHAT THE CORRECT INSTANTIATION OF ATOMICPROP FOR CHAR IS
+{-
+instance AtomicProp Char where
+     atTrue = ""
+     atNot  = ""
+-}
 
 parseLtl :: Parser a -> Parser (LTL a)
 parseLtl term = makeExprParser term' opTable
@@ -117,7 +124,6 @@ data NormLTL a = TermN a
                | UntilN (NormLTL a) (NormLTL a)
                | ReleaseN (NormLTL a) (NormLTL a)
                | NextN (NormLTL a)
-               | NegN (NormLTL a)
       deriving (Eq, Show, Ord)
 
 instance Pretty a => Pretty (NormLTL a) where
@@ -129,6 +135,15 @@ instance Pretty a => Pretty (NormLTL a) where
             ReleaseN e1 e2 -> pBinOp "R" e1 e2
             NextN e1 -> pUnOp "X" e1
 
+negNormLTL :: (AtomicProp a) => NormLTL a -> NormLTL a
+negNormLTL ltl = case ltl of
+     TermN a        -> TermN (atNot a)
+     AndN e1 e2     -> OrN (negNormLTL e1) (negNormLTL e2) 
+     OrN e1 e2      -> AndN (negNormLTL e1) (negNormLTL e2)
+     UntilN e1 e2   -> ReleaseN (negNormLTL e1) (negNormLTL e2)
+     ReleaseN e1 e2 -> UntilN (negNormLTL e1) (negNormLTL e2)
+     NextN e1       -> NextN (negNormLTL e1)
+
 atoms :: NormLTL a -> [(a, Int)]
 atoms = atoms' 0
       where atoms' :: Int -> NormLTL a -> [(a, Int)]
@@ -139,7 +154,6 @@ atoms = atoms' 0
                   UntilN e1 e2   -> atoms' n e1 ++ atoms' n e2
                   ReleaseN e1 e2 -> atoms' n e1 ++ atoms' n e2
                   NextN e1       -> atoms' (n + 1) e1
-                  NegN e1        -> atoms' (n + 1) e1
 
 atomSet :: (Ord a) => NormLTL a -> Set a
 atomSet phi = S.fromList (map fst (atoms phi))

@@ -2,8 +2,10 @@
 
 module StructuredText.ToBuchi 
       ( toBuchi
-      , ltlVardi
-      , phi, aba, nba1, nba2, o, p, r
+      --, ltlVardi
+      , phi
+      --, aba, nba1, nba2
+      , o, p, r
       ) where
 
 import StructuredText.Automata (NFA, nfa)
@@ -116,33 +118,33 @@ toBuchi2 aba = NBA { statesNBA = states
 
 --TESTING
 
-ltl1 :: NormLTL Char
-ltl1 = NegN (UntilN (TermN 's') (TermN 't')) 
+--ltl1 :: NormLTL Char
+--ltl1 = NegN (UntilN (TermN 's') (TermN 't')) 
 
 ltl2 :: NormLTL Char
 ltl2 = AndN (TermN 'r') (TermN 't')
 
-ltlVardi :: NormLTL Char
-ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
+--ltlVardi :: NormLTL Char
+--ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
 
 phi :: NormLTL Char
 phi = NextN (TermN 'p')
 
-aba = toABA phi
+--aba = toABA phi
 
-nba1 = toBuchi aba
+--nba1 = toBuchi aba
 
-nba2 = toBuchi2 aba
+--nba2 = toBuchi2 aba
 
 o = S.empty
 p = S.singleton 'p'
 r = S.fromList ['p', 'q']
 
-ltl4 :: NormLTL Char
-ltl4 = NegN ((NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q'))
+--ltl4 :: NormLTL Char
+--ltl4 = NegN ((NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q'))
 
 boolset :: Set (B Char)
 boolset = S.fromList [BTerm 's', BTerm 'r', BOr (BTerm 't') (BTerm 'u')]
 
-bool1 :: B (NormLTL Char)
-bool1 = BOr (BAnd (BTerm ltl1) (BTerm ltl2)) BTrue
+--bool1 :: B (NormLTL Char)
+--bool1 = BOr (BAnd (BTerm ltl1) (BTerm ltl2)) BTrue
