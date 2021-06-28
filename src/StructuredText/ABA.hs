@@ -3,8 +3,8 @@
 module StructuredText.ABA
       ( ABA (..)
       , B (..)
+      , AP (..)
       , simplify
-      , simplifyLTL
       , satisfy
       , exists
       , acceptABA
@@ -23,9 +23,22 @@ import Text.Show.Functions
 import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL)
 import Test.QuickCheck (oneof, sized, Arbitrary (..), Gen (..))
 
+data AP s = APTrue
+          | APFalse
+          | APTerm s
+          | APNegTerm s
+     deriving (Show, Ord, Eq)
+
+instance AtomicProp (AP s) where
+     atTrue = APTrue
+     atNot APTrue = APFalse
+     atNot APFalse = APTrue
+     atNot (APTerm s) = APNegTerm s
+     atNot (APNegTerm s) = APTerm s
+
 data B s = BTrue
          | BFalse
-         | BTerm s
+         | BTerm s 
          | BAnd (B s) (B s)
          | BOr (B s) (B s)
      deriving (Show, Ord, Eq)
@@ -40,32 +53,6 @@ arbB n = do
      b <- arbB (n - 1)
      oneof [pure (BAnd a b), pure (BOr a b)]
 
-{- instance Eq (B s) where
- -  BAnd BFalse _ == BFalse  = True
- -  BAnd _ BFalse == BFalse  = True
- -  BOr BTrue _   == BTrue   = True
- -  BOr _ BTrue   == BTrue   = True 
--}
-
---want to specify behavior when taking boolean combination of NormLTL formulas as opposed to other types
---possible to do cases based on the TYPE of s, not the pattern?
-simplifyLTL :: (Eq a, AtomicProp a) => B (NormLTL a) -> B (NormLTL a)
-simplifyLTL (BAnd BFalse _) = BFalse
-simplifyLTL (BAnd _ BFalse) = BFalse
-simplifyLTL (BAnd BTrue b)  = simplify b
-simplifyLTL (BAnd b BTrue)  = simplify b
-simplifyLTL (BAnd b1 b2)    | (b1 == b2) = simplify b1
-simplifyLTL (BOr BTrue _)   = BTrue
-simplifyLTL (BOr _ BTrue)   = BTrue
-simplifyLTL (BOr BFalse b)  = simplify b
-simplifyLTL (BOr b BFalse)  = simplify b
-simplifyLTL (BOr b1 b2)     | (b1 == b2) = simplify b1
-simplifyLTL ltl             = ltl
-simplifyLTL (BAnd (BTerm a) (BTerm b)) | (a == negNormLTL b) = BFalse
-                                       | otherwise = BAnd (BTerm a) (BTerm b)
-simplifyLTL (BOr (BTerm a) (BTerm b))  | (a == negNormLTL b) = BTrue      
-                                       | otherwise = BOr (BTerm a) (BTerm b)
-
 simplify :: (Eq s) => B s -> B s
 simplify (BAnd BFalse _) = BFalse
 simplify (BAnd _ BFalse) = BFalse
@@ -79,6 +66,7 @@ simplify (BOr b BFalse)  = simplify b
 simplify (BOr b1 b2)     | (b1 == b2) = simplify b1
 simplify ltl             = ltl
 
+--does the set satisfy the boolean formula?
 satisfy :: (Ord s) => B s -> Set s -> Bool
 satisfy formula set = case formula of
      BTrue          -> True
