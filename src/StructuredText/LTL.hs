@@ -29,6 +29,10 @@ class AtomicProp a where
       atFalse :: a
       atFalse = atNot atTrue
 
+instance (AtomicProp a, AtomicProp b) => AtomicProp (a, b) where
+      atTrue       = (atTrue, atTrue)
+      atNot (a, b) = (atNot a, atNot b)
+
 --NOT SURE WHAT THE CORRECT INSTANTIATION OF ATOMICPROP FOR CHAR IS
 {-
 instance AtomicProp Char where
@@ -52,17 +56,17 @@ opTable =
         , prefix "()" Next
         , prefix "◯"  Next
         ]
-      , [ binop "U" $ Until
-        , binop "⋃" $ Until
+      , [ binop "U"   Until
+        , binop "⋃"   Until
         ]
-      , [ binop "/\\" $ And
-        , binop "∧"   $ And
+      , [ binop "/\\" And
+        , binop "∧"   And
         ]
-      , [ binop "\\/" $ Or
-        , binop "∨"   $ Or
+      , [ binop "\\/" Or
+        , binop "∨"   Or
         ]
-      , [ binop "->"  $ Implies
-        , binop "→"   $ Implies
+      , [ binop "->"  Implies
+        , binop "→"   Implies
         ]
       ]
 
@@ -126,14 +130,41 @@ data NormLTL a = TermN a
                | NextN (NormLTL a)
       deriving (Eq, Show, Ord)
 
+instance Functor NormLTL where
+      fmap f = \ case
+            TermN a        -> TermN $ f a
+            AndN e1 e2     -> AndN (fmap f e1) (fmap f e2)
+            OrN e1 e2      -> OrN (fmap f e1) (fmap f e2)
+            UntilN e1 e2   -> UntilN (fmap f e1) (fmap f e2)
+            ReleaseN e1 e2 -> ReleaseN (fmap f e1) (fmap f e2)
+            NextN e        -> NextN (fmap f e)
+
+instance Foldable NormLTL where
+      foldMap f = \ case
+            TermN a        -> f a
+            AndN e1 e2     -> foldMap f e1 <> foldMap f e2
+            OrN e1 e2      -> foldMap f e1 <> foldMap f e2
+            UntilN e1 e2   -> foldMap f e1 <> foldMap f e2
+            ReleaseN e1 e2 -> foldMap f e1 <> foldMap f e2
+            NextN e        -> foldMap f e
+
+instance Traversable NormLTL where
+      traverse f = \ case
+            TermN a        -> TermN    <$> f a
+            AndN e1 e2     -> AndN     <$> traverse f e1 <*> traverse f e2
+            OrN e1 e2      -> OrN      <$> traverse f e1 <*> traverse f e2
+            UntilN e1 e2   -> UntilN   <$> traverse f e1 <*> traverse f e2
+            ReleaseN e1 e2 -> ReleaseN <$> traverse f e1 <*> traverse f e2
+            NextN e        -> NextN    <$> traverse f e
+
 instance Pretty a => Pretty (NormLTL a) where
       pretty = \ case
-            TermN a -> pretty a
-            AndN e1 e2 -> pBinOp "/\\" e1 e2
-            OrN e1 e2 -> pBinOp "\\/" e1 e2
-            UntilN e1 e2 -> pBinOp "U" e1 e2
+            TermN a        -> pretty a
+            AndN e1 e2     -> pBinOp "/\\" e1 e2
+            OrN e1 e2      -> pBinOp "\\/" e1 e2
+            UntilN e1 e2   -> pBinOp "U" e1 e2
             ReleaseN e1 e2 -> pBinOp "R" e1 e2
-            NextN e1 -> pUnOp "X" e1
+            NextN e        -> pUnOp "X" e
 
 negNormLTL :: (AtomicProp a) => NormLTL a -> NormLTL a
 negNormLTL ltl = case ltl of

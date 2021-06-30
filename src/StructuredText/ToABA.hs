@@ -4,7 +4,7 @@ module StructuredText.ToABA
       ( toABA
       , funcMap
       , ltlVardi
-      , phi
+      -- , phi
       --, aba
       , o, p, r
       ) where
@@ -55,15 +55,15 @@ allReleases formulas = S.filter (\xs -> case xs of
                                        _              -> False) formulas
 
 --letters in the alphabet has type AP a where a is the type of each propositional atom
-toABA :: (Ord (NormLTL a), Ord a) => NormLTL (AP a) -> ABA (NormLTL (AP a)) (Set (AP a))
+toABA :: (AtomicProp a, Ord a) => NormLTL a -> ABA (NormLTL a) (Set a)
 toABA ltl = ABA { statesABA = negSub
                 , initABA   = BTerm ltl
                 , finalABA  = allReleases negSub
                 , deltaABA  = funcMap transition (S.toList (S.cartesianProduct negSub (S.powerSet (atomSet ltl))))
                 }
       where negSub = S.union (subformulas ltl) (S.map negNormLTL (subformulas ltl))
-                        
-            transition :: (Ord a) => NormLTL (AP a) -> Set (AP a) -> B (NormLTL (AP a))
+
+            transition :: Ord a => NormLTL a -> Set a -> B (NormLTL a)
             transition formula alph = case formula of
                  TermN s             -> if S.member s alph then BTrue else BFalse
                  AndN s1 s2          -> BAnd (transition s1 alph) (transition s2 alph)
@@ -84,16 +84,16 @@ ltl1 = undefined
 --ltl1 = NegN (UntilN (TermN 's') (TermN 't')) 
 --ltl1 = ReleaseN (TermN (atNot 's')) (TermN (atNot 't'))
 
-ltl2 :: NormLTL (AP Char)
-ltl2 = AndN (TermN 'r') (TermN 't')
+-- ltl2 :: NormLTL (AP Char)
+-- ltl2 = AndN (TermN 'r') (TermN 't')
 
 ltlVardi :: NormLTL Char
 ltlVardi = undefined
 --ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
 --ltlVardi = (NextN (TermN (atNot 'p'))) `UntilN` (TermN 'q')
 
-phi :: NormLTL (AP Char)
-phi = NextN (TermN 'p')
+-- phi :: NormLTL (AP Char)
+-- phi = NextN (TermN 'p')
 
 --aba = toABA phi
 
@@ -109,5 +109,5 @@ ltl4 = undefined
 boolset :: Set (B Char)
 boolset = S.fromList [BTerm 's', BTerm 'r', BOr (BTerm 't') (BTerm 'u')]
 
-bool1 :: B (NormLTL Char)
-bool1 = BOr (BAnd (BTerm ltl1) (BTerm ltl2)) BTrue
+-- bool1 :: B (NormLTL Char)
+-- bool1 = BOr (BAnd (BTerm ltl1) (BTerm ltl2)) BTrue
