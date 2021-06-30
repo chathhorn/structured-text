@@ -38,10 +38,17 @@ instance AtomicProp (AP s) where
 
 data B s = BTrue
          | BFalse
-         | BTerm s 
+         | BTerm s
          | BAnd (B s) (B s)
          | BOr (B s) (B s)
      deriving (Show, Ord, Eq)
+
+instance Foldable B where
+      foldMap f = \ case
+            BTerm a        -> f a
+            BAnd e1 e2     -> foldMap f e1 <> foldMap f e2
+            BOr e1 e2      -> foldMap f e1 <> foldMap f e2
+            _              -> mempty
 
 instance Arbitrary (B s) where
      arbitrary = sized arbB
