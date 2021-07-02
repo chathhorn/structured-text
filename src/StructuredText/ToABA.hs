@@ -9,7 +9,6 @@ module StructuredText.ToABA
       , o, p, r
       ) where
 
-import StructuredText.Automata (NFA, nfa)
 import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atomSet)
 import StructuredText.ABA (ABA (..), B (..), AP (..), satisfy, simplify)
 import StructuredText.Buchi (NBA (..))

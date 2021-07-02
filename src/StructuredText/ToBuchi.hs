@@ -8,7 +8,6 @@ module StructuredText.ToBuchi
       , o, p, r
       ) where
 
-import StructuredText.Automata (NFA, nfa)
 import StructuredText.LTL (NormLTL (..))
 import StructuredText.ABA (ABA (..), B (..), satisfy, simplify)
 import StructuredText.Buchi (NBA (..))
