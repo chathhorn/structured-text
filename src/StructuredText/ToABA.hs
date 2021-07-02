@@ -1,22 +1,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module StructuredText.ToABA 
+module StructuredText.ToABA
       ( toABA
       , funcMap
-      , ltlVardi
-      -- , phi
-      --, aba
       , o, p, r
+      , boolset
+      , dual
       ) where
 
 import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atomSet)
-import StructuredText.ABA (ABA (..), B (..), AP (..), satisfy, simplify)
-import StructuredText.Buchi (NBA (..))
-import Data.Set (Set, null)
+import StructuredText.ABA (ABA (..), B (..))
+import Data.Set (Set)
 import qualified Data.Set as S
-import Data.Map.Strict (Map, insert, empty)
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Data.List (find)
 
 -- NormLTL a =
 -- | TermN    a
@@ -28,7 +25,7 @@ import Data.List (find)
 
 --THIS NEEDS TO BE EDITED!!!
 
-dual :: (AtomicProp a) => B (NormLTL a) -> B (NormLTL a)
+dual :: AtomicProp a => B (NormLTL a) -> B (NormLTL a)
 dual formula = case formula of
      BTrue        -> BFalse
      BFalse       -> BTrue
@@ -37,16 +34,15 @@ dual formula = case formula of
      BOr b1 b2    -> BAnd (dual b1) (dual b2)
 
 --condition (Ord (NormLTL a)) needed for Set operations, added "deriving Ord" to NormLTL
-subformulas :: (Ord (NormLTL a)) => NormLTL a -> Set (NormLTL a)
+subformulas :: Ord a => NormLTL a -> Set (NormLTL a)
 subformulas ltl = case ltl of
      TermN a      -> S.singleton (TermN a)
      AndN a b     -> S.unions [S.singleton (AndN a b),   (subformulas a), (subformulas b)]
      OrN a b      -> S.unions [S.singleton (OrN a b),    (subformulas a), (subformulas b)]
      UntilN a b   -> S.unions [S.singleton (UntilN a b), (subformulas a), (subformulas b)]
-     ReleaseN a b -> S.unions [S.singleton (ReleaseN a b), (subformulas a), (subformulas b)]    
+     ReleaseN a b -> S.unions [S.singleton (ReleaseN a b), (subformulas a), (subformulas b)]
      NextN a      -> S.union  (S.singleton (NextN a))    (subformulas a)
-     --RJ elimNeg NegN a       -> S.union  (S.singleton (NegN a))     (subformulas a) 
-     _            -> S.empty
+     --RJ elimNeg NegN a       -> S.union  (S.singleton (NegN a))     (subformulas a)
 
 allReleases :: Set (NormLTL a) -> Set (NormLTL a)
 allReleases formulas = S.filter (\xs -> case xs of
@@ -74,36 +70,38 @@ toABA ltl = ABA { statesABA = negSub
 funcMap :: (Ord a, Ord b) => (a -> b -> c) -> [(a, b)] -> Map (a, b) c
 funcMap func list = case list of
      x : xs -> M.insert x (func (fst x) (snd x)) (funcMap func xs)
-     []     -> M.empty 
-     
+     []     -> M.empty
+
 --TESTING
 
-ltl1 :: NormLTL (AP Char)
-ltl1 = undefined
---ltl1 = NegN (UntilN (TermN 's') (TermN 't')) 
---ltl1 = ReleaseN (TermN (atNot 's')) (TermN (atNot 't'))
+-- ltl1 :: NormLTL (AP Char)
+-- ltl1 = NegN (UntilN (TermN 's') (TermN 't'))
+-- ltl1 = ReleaseN (TermN (atNot 's')) (TermN (atNot 't'))
 
 -- ltl2 :: NormLTL (AP Char)
 -- ltl2 = AndN (TermN 'r') (TermN 't')
 
-ltlVardi :: NormLTL Char
-ltlVardi = undefined
---ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
---ltlVardi = (NextN (TermN (atNot 'p'))) `UntilN` (TermN 'q')
+-- ltlVardi :: NormLTL Char
+-- ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
+-- ltlVardi = (NextN (TermN (atNot 'p'))) `UntilN` (TermN 'q')
 
 -- phi :: NormLTL (AP Char)
 -- phi = NextN (TermN 'p')
 
---aba = toABA phi
+-- aba = toABA phi
 
+o :: Set a
 o = S.empty
+
+p :: Set Char
 p = S.singleton 'p'
+
+r :: Set Char
 r = S.fromList ['p', 'q']
 
-ltl4 :: NormLTL (AP Char)
-ltl4 = undefined
---ltl4 = NegN ((NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q'))
---ltl4 = (NextN (TermN 'p')) `ReleaseN` (TermN (atNot 'q'))
+-- ltl4 :: NormLTL (AP Char)
+-- ltl4 = NegN ((NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q'))
+-- ltl4 = (NextN (TermN 'p')) `ReleaseN` (TermN (atNot 'q'))
 
 boolset :: Set (B Char)
 boolset = S.fromList [BTerm 's', BTerm 'r', BOr (BTerm 't') (BTerm 'u')]

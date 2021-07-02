@@ -8,7 +8,7 @@ module StructuredText.Testing
       --, prop_Vardi
       ) where
 
-import Test.QuickCheck (quickCheck, quickCheckWith, verboseCheck, verboseCheckWith, Arbitrary, stdArgs, Args)
+-- import Test.QuickCheck (quickCheck, quickCheckWith, verboseCheck, verboseCheckWith, Arbitrary, stdArgs, Args)
 import Data.Set (Set)
 import StructuredText.ABA 
       ( B (..)
@@ -17,11 +17,11 @@ import StructuredText.ABA
       , satisfy
       , acceptABA )
 import StructuredText.Buchi (acceptNBA)
-import StructuredText.ToABA (toABA)
+-- import StructuredText.ToABA (toABA)
 import StructuredText.ToBuchi 
-      ( toBuchi
-      --, ltlVardi
-      , phi )
+       ( toBuchi
+--       --, ltlVardi, phi
+       )
 
 --testing quickCheck
 

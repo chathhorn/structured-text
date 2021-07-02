@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module StructuredText.ToPython ( toPython ) where
 
 import Data.Text (Text, unpack)
@@ -277,10 +278,11 @@ transLit = \ case
       String s    -> pure $ Py.ByteStrings [unpack s] ()
       WString s   -> pure $ Py.Strings [unpack s] ()
 
--- | Orphan instances.
+-- | Orphan instance.
 instance Pretty (Py.Expr ()) where
       pretty = pretty . Py.prettyText
 
+-- | Orphan instance.
 instance AtomicProp (Py.Expr ()) where
       atTrue  = Py.Bool True ()
       atNot a = Py.UnaryOp (Py.Not ()) a ()
