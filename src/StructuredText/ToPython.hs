@@ -36,7 +36,10 @@ toPython :: STxt -> Either Err (Py.Module ())
 toPython = flip evalStateT [] . transSTxt
 
 transSTxt :: (MonadState Sto m, MonadError Err m) => STxt -> m (Py.Module ())
-transSTxt (STxt gs) = Py.Module <$> (concat <$> mapM transGlobal gs)
+transSTxt (STxt gs) = Py.Module <$> (((importABA:) . concat) <$> mapM transGlobal gs)
+
+importABA :: Py.Statement ()
+importABA = Py.FromImport (Py.ImportRelative 0 (Just [Py.Ident "aba" ()]) ()) (Py.ImportEverything ()) ()
 
 transGlobal :: (MonadState Sto m, MonadError Err m) => Global -> m [Py.Statement ()]
 transGlobal = \ case
@@ -76,6 +79,8 @@ ltlGlob x aba n = [Py.Assign [pyVar (abaId x n)] abaInit ()]
             pyDelta :: ((NormLTL (Py.Expr ()), Set (Py.Expr ())), B (NormLTL (Py.Expr ()))) -> Py.DictKeyDatumList ()
             pyDelta ((ltl, es), b) = Py.DictMappingPair (pyPair (pyStringifyLTL ltl) (pySet $ map pyStringify (Set.toList es))) (pyB b)
 
+-- | Add parens to a python expression. Makes a half-hearted attempt to remove redundant parens in the resulting
+--   expression
 parens :: Py.Expr () -> Py.Expr ()
 parens = dedup . flip Py.Paren ()
       where dedup  = dedupSwitched False
