@@ -1,7 +1,8 @@
 module StructuredText.Buchi
       ( NBA (..)
       , runNBA
-      , acceptNBA 
+      , acceptNBA, acceptNBA'
+      , cantoraba
       ) where
 
 import Prelude hiding (concat)
@@ -9,11 +10,7 @@ import qualified Data.Set as S
 import Data.Set (Set)
 import qualified Data.Map.Strict as M
 import Data.Map.Strict (Map)
-import Data.Maybe (fromMaybe)
 import Data.List (last)
-import Text.Show.Functions
---import StructuredText.ABA
-import StructuredText.LTL (atoms)
 
 data NBA state alph = NBA
       { statesNBA :: Set state
@@ -50,12 +47,12 @@ acceptNBA' aut word = case word of
 
 --examples for testing
 
-tran :: Map (String, Integer) (Set String)
-tran = M.fromList[(("state 0", 0), S.singleton "state 0" ), (("state 0", 1), S.singleton "state 1"), (("state 0", 2), S.singleton "state 0")]
-
-tran_func :: String -> Integer -> Set String
-tran_func s a = M.findWithDefault S.empty (s, a) tran
-
 cantoraba :: NBA String Integer
-cantoraba = NBA {statesNBA = S.fromList ["state 0", "state 1"] , initsNBA = S.fromList ["state 0"] , finalNBA = S.fromList["state 0"] , deltaNBA = tran_func}
+cantoraba = NBA {statesNBA = S.fromList ["state 0", "state 1"] , initsNBA = S.fromList ["state 0"] , finalNBA = S.fromList["state 0"] , deltaNBA = tranFunc}
+      where tranFunc :: String -> Integer -> Set String
+            tranFunc s a = M.findWithDefault S.empty (s, a) tran
+
+            tran :: Map (String, Integer) (Set String)
+            tran = M.fromList[(("state 0", 0), S.singleton "state 0" ), (("state 0", 1), S.singleton "state 1"), (("state 0", 2), S.singleton "state 0")]
+
 

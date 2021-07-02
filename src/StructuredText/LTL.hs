@@ -10,7 +10,7 @@ module StructuredText.LTL
 import Data.Text ( Text, singleton )
 import Data.Char ( isAlpha, isAlphaNum )
 import Data.Void ( Void )
-import Data.Set  ( fromList, Set )
+import Data.Set  ( Set )
 import Text.Megaparsec ( Parsec, (<?>), (<|>), between, empty, takeWhileP, try, satisfy )
 
 import Control.Monad.Combinators.Expr ( makeExprParser, Operator (..) )
