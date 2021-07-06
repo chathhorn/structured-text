@@ -67,8 +67,8 @@ class ABA:
                   return state
 
             if state.tag == B.TERM:
-                  if (state, inp) in self.delta:
-                        return self.delta[(state, inp)]
+                  if (state.left, inp) in self.delta:
+                        return self.delta[(state.left, inp)]
                   else:
                          return BNode(B.TRUE)
 
