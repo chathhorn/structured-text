@@ -8,7 +8,7 @@ module StructuredText.ToBuchi
       , exists
       ) where
 
-import StructuredText.LTL (NormLTL (..))
+import StructuredText.LTL (NormLTL (..), AtomicProp (..))
 import StructuredText.ABA (ABA (..), B (..), satisfy, simplify)
 import StructuredText.Buchi (NBA (..))
 import Data.Set (Set)
@@ -24,10 +24,10 @@ import Data.List (find)
 -- | ReleaseN (NormLTL a) (NormLTL a)
 -- | NextN    (NormLTL a)
 
-boolAnd :: (Eq s) => B s -> B s -> B s
+boolAnd :: (AtomicProp s, Eq s) => B s -> B s -> B s
 boolAnd b1 b2 = simplify (BAnd b1 b2)
 
-toBuchi :: (Ord a, Ord s) => ABA s a -> NBA (Set s, Set s) a
+toBuchi :: (AtomicProp s, Ord a, Ord s) => ABA s a -> NBA (Set s, Set s) a
 toBuchi aba = NBA { statesNBA = states
                   , initsNBA  = S.singleton (S.singleton (extract (initABA aba)), S.empty) --initABA saved as BTerm s, need just s
                   , finalNBA  = S.cartesianProduct (S.singleton S.empty) (S.powerSet (statesABA aba))
@@ -70,7 +70,7 @@ exists :: Eq s => (s -> Bool) -> Set s -> Bool
 exists condition set | find condition set == Nothing = False
                      | otherwise = True
 
-toBuchi2 :: (Ord a, Ord s) => ABA s a -> NBA (Set s, Set s) a
+toBuchi2 :: (AtomicProp s, Ord a, Ord s) => ABA s a -> NBA (Set s, Set s) a
 toBuchi2 aba = NBA { statesNBA = states
                   , initsNBA  = S.singleton (S.singleton (extract (initABA aba)), S.empty) --initABA saved as BTerm s, need just s
                   , finalNBA  = S.cartesianProduct (S.singleton S.empty) (S.powerSet (statesABA aba))
