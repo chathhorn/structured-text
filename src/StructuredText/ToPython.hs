@@ -291,3 +291,7 @@ instance Pretty (Py.Expr ()) where
 instance AtomicProp (Py.Expr ()) where
       atTrue  = Py.Bool True ()
       atNot a = Py.UnaryOp (Py.Not ()) a ()
+      atEval (Py.Bool True ())  = Just True
+      atEval (Py.Bool False ()) = Just False
+      atEval (Py.UnaryOp (Py.Not ()) (Py.UnaryOp (Py.Not ()) a ()) ()) = atEval a
+      atEval _ = Nothing

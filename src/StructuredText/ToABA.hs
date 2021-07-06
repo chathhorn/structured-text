@@ -8,7 +8,7 @@ module StructuredText.ToABA
       , dual
       ) where
 
-import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atomSet)
+import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atomSet, BasicTerm (..))
 import StructuredText.ABA (ABA (..), B (..))
 import Data.Set (Set)
 import qualified Data.Set as S
@@ -74,19 +74,19 @@ funcMap func list = case list of
 
 --TESTING
 
--- ltl1 :: NormLTL (AP Char)
--- ltl1 = NegN (UntilN (TermN 's') (TermN 't'))
--- ltl1 = ReleaseN (TermN (atNot 's')) (TermN (atNot 't'))
+-- ltl1 :: NormLTL BasicTerm
+-- ltl1 = atNot (UntilN (TermN (BTVar "s")) (TermN (BTVar "t")))
+-- ltl1 = ReleaseN (TermN (atNot (BTVar "s"))) (TermN (atNot (BTVar "t")))
 
--- ltl2 :: NormLTL (AP Char)
--- ltl2 = AndN (TermN 'r') (TermN 't')
+-- ltl2 :: NormLTL BasicTerm
+-- ltl2 = atNot (TermN (BTVar "r")) (TermN (BTVar "t"))
 
--- ltlVardi :: NormLTL Char
--- ltlVardi = (NextN (NegN (TermN 'p'))) `UntilN` (TermN 'q')
--- ltlVardi = (NextN (TermN (atNot 'p'))) `UntilN` (TermN 'q')
+-- ltlVardi :: NormLTL BasicTerm
+-- ltlVardi = (NextN (atNot (TermN (BTVar "p")))) `UntilN` (TermN (BTVar "q"))
+-- ltlVardi = (NextN (TermN (atNot (BTVar "p")))) `UntilN` (TermN (BTVar "q"))
 
--- phi :: NormLTL (AP Char)
--- phi = NextN (TermN 'p')
+-- phi :: NormLTL BasicTerm
+-- phi = NextN (TermN (BTVar "p"))
 
 -- aba = toABA phi
 

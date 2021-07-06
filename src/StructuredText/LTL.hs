@@ -26,19 +26,15 @@ type Parser = Parsec Void Text
 class AtomicProp a where
       atTrue :: a
       atNot :: a -> a
+      atEval :: a -> Maybe Bool
+      atEval _ = Nothing
       atFalse :: a
       atFalse = atNot atTrue
 
 instance (AtomicProp a, AtomicProp b) => AtomicProp (a, b) where
-      atTrue       = (atTrue, atTrue)
-      atNot (a, b) = (atNot a, atNot b)
-
---NOT SURE WHAT THE CORRECT INSTANTIATION OF ATOMICPROP FOR CHAR IS
-{-
-instance AtomicProp Char where
-     atTrue = ""
-     atNot  = ""
--}
+      atTrue         = (atTrue, atTrue)
+      atNot (a, b)   = (atNot a, atNot b)
+      atEval (a, b)  = (&&) <$> atEval a <*> atEval b
 
 parseLtl :: Parser a -> Parser (LTL a)
 parseLtl term = makeExprParser term' opTable
@@ -166,6 +162,44 @@ instance Pretty a => Pretty (NormLTL a) where
             ReleaseN e1 e2 -> pBinOp "R" e1 e2
             NextN e        -> pUnOp "X" e
 
+instance AtomicProp a => AtomicProp (NormLTL a) where
+      atTrue = TermN atTrue
+      atNot = \ case
+            TermN a        -> TermN $ atNot a
+            AndN e1 e2     -> OrN (atNot e1) (atNot e2)
+            OrN e1 e2      -> AndN (atNot e1) (atNot e2)
+            UntilN e1 e2   -> ReleaseN (atNot e1) (atNot e2)
+            ReleaseN e1 e2 -> UntilN (atNot e1) (atNot e2)
+            NextN e        -> NextN $ atNot e
+
+      atEval = \ case
+            TermN e  -> atEval e
+            AndN e1 e2 -> case (atEval e1, atEval e2) of
+                  (Just False, _) -> Just False
+                  (_, Just False) -> Just False
+                  (Just True, a)  -> a
+                  (a, Just True)  -> a
+                  _               -> Nothing
+            OrN e1 e2  -> case (atEval e1, atEval e2) of
+                  (Just True, _)  -> Just True
+                  (_, Just True)  -> Just True
+                  (Just False, a) -> a
+                  (a, Just False) -> a
+                  _               -> Nothing
+            UntilN e1 e2 -> case (atEval e1, atEval e2) of
+                  (Just True, _)  -> Just True
+                  (_, Just True)  -> Just True
+                  (Just False, a) -> a
+                  (a, Just False) -> a
+                  _               -> Nothing
+            ReleaseN e1 e2 -> case (atEval e1, atEval e2) of
+                  (Just False, _) -> Just False
+                  (_, Just False) -> Just False
+                  (Just True, a)  -> a
+                  (a, Just True)  -> a
+                  _               -> Nothing
+            NextN a               -> atEval a
+
 negNormLTL :: (AtomicProp a) => NormLTL a -> NormLTL a
 negNormLTL ltl = case ltl of
      TermN a        -> TermN (atNot a)
@@ -236,7 +270,7 @@ data BasicTerm = BTVar Text
                | BTTrue
                | BTFalse
                | BTNot BasicTerm
-      deriving (Eq, Show)
+      deriving (Eq, Show, Ord)
 
 instance Pretty BasicTerm where
       pretty = \ case
@@ -246,8 +280,12 @@ instance Pretty BasicTerm where
             BTNot t -> pretty ("!" :: Text) <+> pretty t
 
 instance AtomicProp BasicTerm where
-      atTrue = BTTrue
-      atNot = BTNot
+      atTrue                    = BTTrue
+      atNot                     = BTNot
+      atEval BTTrue             = Just True
+      atEval BTFalse            = Just False
+      atEval (BTNot (BTNot a))  = atEval a
+      atEval _                  = Nothing
 
 basicTerm :: Parser BasicTerm
 basicTerm = try (BTTrue <$ symbol "true")
