@@ -1,5 +1,7 @@
 from enum import Enum, auto
 
+debug = True
+
 class B(Enum):
       AND   = auto()
       OR    = auto()
@@ -38,23 +40,29 @@ class BNode:
 def simplify(b):
       if type(b) is BNode:
             if b.tag == B.AND:
-                  if b.left.tag == B.FALSE or b.right.tag == B.FALSE:
+                  left = simplify(b.left)
+                  right = simplify(b.right)
+                  if left.tag == B.FALSE or right.tag == B.FALSE:
                         return BNode(B.FALSE)
-                  if b.left.tag == B.TRUE:
-                        return simplify(b.right)
-                  if b.right.tag == B.TRUE:
-                        return simplify(b.left)
-                  if b.left == b.right:
-                        return simplify(b.left)
+                  if left.tag == B.TRUE:
+                        return right
+                  if right.tag == B.TRUE:
+                        return left
+                  if left == right:
+                        return left
+                  return BNode(B.AND, left, right)
             if b.tag == B.OR:
-                  if b.left.tag == B.TRUE or b.right.tag == B.TRUE:
+                  left = simplify(b.left)
+                  right = simplify(b.right)
+                  if left.tag == B.TRUE or right.tag == B.TRUE:
                         return BNode(B.TRUE)
-                  if b.left.tag == B.FALSE:
-                        return simplify(b.right)
-                  if b.right.tag == B.FALSE:
-                        return simplify(b.left)
-                  if b.left == b.right:
-                        return simplify(b.left)
+                  if left.tag == B.FALSE:
+                        return right
+                  if right.tag == B.FALSE:
+                        return left
+                  if left == right:
+                        return left
+                  return BNode(B.OR, left, right)
       return b
 
 class ABA:
@@ -90,8 +98,18 @@ class ABA:
             return False
 
       def accept(self, inp=set()):
+            if debug:
+                print("ACCEPTING...")
             if type(inp) is set:
+                  print(self.current_state)
+                  s = self.deltaP(self.current_state, frozenset(inp))
+                  if debug:
+                        print("=========>")
+                        print(s)
+                        print("==simpl==>")
                   self.current_state = simplify(self.deltaP(self.current_state, frozenset(inp)))
+                  if debug:
+                        print(self.current_state)
 
                   if self.current_state.tag == B.FALSE:
                         return False
