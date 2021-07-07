@@ -4,7 +4,7 @@ module StructuredText.LTL
       , BasicTerm (..), basicTerm
       , NormLTL (..), negNormLTL, normalize
       , AtomicProp (..)
-      , depth, atoms, atomSet
+      , atoms
       ) where
 
 import Data.Text ( Text, singleton )
@@ -173,7 +173,7 @@ instance AtomicProp a => AtomicProp (NormLTL a) where
             NextN e        -> NextN $ atNot e
 
       atEval = \ case
-            TermN e  -> atEval e
+            TermN e    -> atEval e
             AndN e1 e2 -> case (atEval e1, atEval e2) of
                   (Just False, _) -> Just False
                   (_, Just False) -> Just False
@@ -209,22 +209,15 @@ negNormLTL ltl = case ltl of
      ReleaseN e1 e2 -> UntilN (negNormLTL e1) (negNormLTL e2)
      NextN e1       -> NextN (negNormLTL e1)
 
-atoms :: NormLTL a -> [(a, Int)]
-atoms = atoms' 0
-      where atoms' :: Int -> NormLTL a -> [(a, Int)]
-            atoms' n = \ case
-                  TermN a        -> [(a, n)]
-                  AndN e1 e2     -> atoms' n e1 ++ atoms' n e2
-                  OrN e1 e2      -> atoms' n e1 ++ atoms' n e2
-                  UntilN e1 e2   -> atoms' n e1 ++ atoms' n e2
-                  ReleaseN e1 e2 -> atoms' n e1 ++ atoms' n e2
-                  NextN e1       -> atoms' (n + 1) e1
-
-atomSet :: (Ord a) => NormLTL a -> Set a
-atomSet phi = S.fromList (map fst (atoms phi))
-
-depth :: NormLTL a -> Int
-depth ltl = maximum (map snd (atoms ltl)) + 1
+atoms :: (AtomicProp a, Ord a) => NormLTL a -> Set a
+atoms = \ case
+      TermN a | atEval a == Nothing -> S.singleton a
+      TermN _                       -> mempty
+      AndN e1 e2                    -> atoms e1 `S.union` atoms e2
+      OrN e1 e2                     -> atoms e1 `S.union` atoms e2
+      UntilN e1 e2                  -> atoms e1 `S.union` atoms e2
+      ReleaseN e1 e2                -> atoms e1 `S.union` atoms e2
+      NextN e1                      -> atoms e1
 
 -- | Rewrite an LTL prop into "negation normal form":
 --   - elminate Implies, Always, Eventually

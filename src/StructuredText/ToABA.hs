@@ -8,7 +8,7 @@ module StructuredText.ToABA
       , dual
       ) where
 
-import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atomSet, BasicTerm (..))
+import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atoms, BasicTerm (..))
 import StructuredText.ABA (ABA (..), B (..))
 import Data.Set (Set)
 import qualified Data.Set as S
@@ -54,7 +54,7 @@ toABA :: (AtomicProp a, Ord a) => NormLTL a -> ABA (NormLTL a) (Set a)
 toABA ltl = ABA { statesABA = negSub
                 , initABA   = BTerm ltl
                 , finalABA  = allReleases negSub
-                , deltaABA  = funcMap transition (S.toList (S.cartesianProduct negSub (S.powerSet (atomSet ltl))))
+                , deltaABA  = funcMap transition (S.toList (S.cartesianProduct negSub (S.powerSet (atoms ltl))))
                 }
       where negSub = S.union (subformulas ltl) (S.map negNormLTL (subformulas ltl))
 

@@ -72,14 +72,15 @@ arbB n = do
      oneof [pure (BAnd a b), pure (BOr a b)]
 
 simplify :: (AtomicProp s, Eq s) => B s -> B s
+simplify s | atEval s == Just True  = BTrue
+simplify s | atEval s == Just False = BFalse
 simplify (BAnd b1 b2)
-      | simplify b1 == simplify b2 = simplify b1
+      | simplify b1 == simplify b2  = simplify b1
+simplify (BAnd b1 b2)               = BAnd (simplify b1) (simplify b2)
 simplify (BOr b1 b2)
-      | simplify b1 == simplify b2 = simplify b1
-simplify s = case atEval s of
-      Just True  -> BTrue
-      Just False -> BFalse
-      Nothing    -> s
+      | simplify b1 == simplify b2  = simplify b1
+simplify (BOr b1 b2)                = BOr (simplify b1) (simplify b2)
+simplify s                          = s
 
 --does the set satisfy the boolean formula?
 satisfy :: (Ord s) => B s -> Set s -> Bool

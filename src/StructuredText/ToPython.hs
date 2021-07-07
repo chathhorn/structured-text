@@ -10,7 +10,7 @@ import Control.Monad.State.Class (MonadState, gets, modify)
 import Control.Monad.Trans.State.Strict (evalStateT)
 import Control.Monad.Except (MonadError (..))
 import StructuredText.Syntax
-import StructuredText.LTL (AtomicProp (..), NormLTL (..), atomSet)
+import StructuredText.LTL (AtomicProp (..), NormLTL (..), atoms)
 import qualified StructuredText.LTL as LTL
 import Text.Casing (quietSnake)
 import qualified Language.Python.Common.AST as Py
@@ -145,7 +145,7 @@ pyVar' x = pyVar (Py.Ident (unpack x) ())
 ltlFun :: Py.Ident () -> [Py.Parameter ()] -> ABA (NormLTL (Py.Expr ())) (Set (Py.Expr ())) -> Int -> Py.Statement ()
 ltlFun x ds aba n = Py.Fun funId (ds ++ [Py.Param x Nothing Nothing ()]) Nothing
                [ Py.Global [abaId x n] ()
-               , Py.Assign [d] (Py.Dictionary (map keyVal atoms) ()) ()
+               , Py.Assign [d] (Py.Dictionary (map keyVal atoms') ()) ()
                , Py.Return (Just $ Py.Call (Py.Dot (pyVar $ abaId x n) (Py.Ident "accept_dict" ()) ()) [Py.ArgExpr d ()] ()) ()
                ]
                ()
@@ -155,8 +155,8 @@ ltlFun x ds aba n = Py.Fun funId (ds ++ [Py.Param x Nothing Nothing ()]) Nothing
             funId :: Py.Ident ()
             funId = Py.Ident (Py.prettyText x ++ "_ltl_" ++ show n) ()
 
-            atoms :: [Py.Expr ()]
-            atoms = Set.toList $ foldMap atomSet (initABA aba)
+            atoms' :: [Py.Expr ()]
+            atoms' = Set.toList $ foldMap atoms (initABA aba)
 
             keyVal :: Py.Expr () -> Py.DictKeyDatumList ()
             keyVal e = Py.DictMappingPair (pyStringify e) e
@@ -293,5 +293,21 @@ instance AtomicProp (Py.Expr ()) where
       atNot a = Py.UnaryOp (Py.Not ()) a ()
       atEval (Py.Bool True ())  = Just True
       atEval (Py.Bool False ()) = Just False
-      atEval (Py.UnaryOp (Py.Not ()) (Py.UnaryOp (Py.Not ()) a ()) ()) = atEval a
+      atEval (Py.Paren a ())    = atEval a
+      atEval (Py.UnaryOp (Py.Not ()) a ()) = not <$> atEval a
+      atEval (Py.BinaryOp (Py.And ()) a b ()) = case (atEval a, atEval b) of
+            (Just True, a')         -> a'
+            (Just False, _)         -> Just False
+            (_, Just False)         -> Just False
+            _                       -> Nothing
+      atEval (Py.BinaryOp (Py.Or ()) a b ()) = case (atEval a, atEval b) of
+            (Just False, a')        -> a'
+            (Just True, _)          -> Just True
+            (_, Just True)          -> Just True
+            _                       -> Nothing
+      atEval (Py.BinaryOp (Py.Xor ()) a b ()) = case (atEval a, atEval b) of
+            (Just True, Just False) -> Just True
+            (Just False, Just True) -> Just True
+            (Just _, Just _)        -> Just False
+            _                       -> Nothing
       atEval _ = Nothing
