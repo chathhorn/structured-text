@@ -4,18 +4,21 @@ module StructuredText.Testing
       , prop_RevApp
       , prop_simpl
       , prop_simpl_sat
-      , prop_aba_nba_equiv
-      --, prop_Vardi
+      -- , prop_aba_nba_equiv
+      -- , prop_Vardi
       ) where
 
 -- import Test.QuickCheck (quickCheck, quickCheckWith, verboseCheck, verboseCheckWith, Arbitrary, stdArgs, Args)
 import Data.Set (Set)
 import StructuredText.ABA 
+      ( ABA (..)
+      -- , acceptABA
+      )
+import StructuredText.Boolean
       ( B (..)
-      , ABA (..)
       , simplify
       , satisfy
-      , acceptABA )
+      )
 import StructuredText.Buchi (acceptNBA)
 -- import StructuredText.ToABA (toABA)
 import StructuredText.LTL (AtomicProp (..))
@@ -47,8 +50,8 @@ prop_simpl_sat :: (AtomicProp s, Eq s, Ord s) => B s -> Set s -> Bool
 prop_simpl_sat formula set = satisfy (simplify formula) set == satisfy formula set
 
 --an ABA and its equivalent NBA accept the same strings
-prop_aba_nba_equiv :: (AtomicProp s, Eq a, Ord a, Ord s) => ABA s a -> [a] -> Bool
-prop_aba_nba_equiv aut word = acceptABA aut word == acceptNBA (toBuchi (aut)) word
+-- prop_aba_nba_equiv :: (AtomicProp s, Eq a, Ord a, Ord s) => ABA s a -> [a] -> Bool
+-- prop_aba_nba_equiv aut word = acceptABA aut word == acceptNBA (toBuchi (aut)) word
 
 --Vardi ABA and equivalent NBA accept the same strings
 --prop_Vardi :: (Eq a, Ord a, Ord s) => [a] -> Bool

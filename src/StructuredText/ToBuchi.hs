@@ -9,7 +9,8 @@ module StructuredText.ToBuchi
       ) where
 
 import StructuredText.LTL (NormLTL (..), AtomicProp (..))
-import StructuredText.ABA (ABA (..), B (..), satisfy, simplify)
+import StructuredText.ABA (ABA (..))
+import StructuredText.Boolean (B (..), simplify, satisfy)
 import StructuredText.Buchi (NBA (..))
 import Data.Set (Set)
 import qualified Data.Set as S
@@ -29,7 +30,7 @@ boolAnd b1 b2 = simplify (BAnd b1 b2)
 
 toBuchi :: (AtomicProp s, Ord a, Ord s) => ABA s a -> NBA (Set s, Set s) a
 toBuchi aba = NBA { statesNBA = states
-                  , initsNBA  = S.singleton (S.singleton (extract (initABA aba)), S.empty) --initABA saved as BTerm s, need just s
+                  , initsNBA  = S.singleton (S.singleton (extract (currABA aba)), S.empty) --currABA saved as BTerm s, need just s
                   , finalNBA  = S.cartesianProduct (S.singleton S.empty) (S.powerSet (statesABA aba))
                   , deltaNBA  = transition
                   }
@@ -58,7 +59,7 @@ toBuchi aba = NBA { statesNBA = states
            --bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)
 
            --bigAnd :: Set s -> a -> B s (deltaABA :: Map (s, a) (B s))
-           bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (mapFunc (deltaABA aba))) alph) set)
+           bigAnd set alph = S.foldl boolAnd BTrue (S.map (flip (deltaABA aba) alph) set)
 
            --mapFunc :: Map (s, a) (B s) -> s -> a -> B s
            mapFunc m s a= M.findWithDefault BTrue (s, a) m
@@ -72,7 +73,7 @@ exists condition set | find condition set == Nothing = False
 
 toBuchi2 :: (AtomicProp s, Ord a, Ord s) => ABA s a -> NBA (Set s, Set s) a
 toBuchi2 aba = NBA { statesNBA = states
-                  , initsNBA  = S.singleton (S.singleton (extract (initABA aba)), S.empty) --initABA saved as BTerm s, need just s
+                  , initsNBA  = S.singleton (S.singleton (extract (currABA aba)), S.empty) --currABA saved as BTerm s, need just s
                   , finalNBA  = S.cartesianProduct (S.singleton S.empty) (S.powerSet (statesABA aba))
                   , deltaNBA  = transition
                   }
@@ -106,7 +107,7 @@ toBuchi2 aba = NBA { statesNBA = states
            --bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)
 
            --bigAnd :: Set s -> a -> B s (deltaABA :: Map (s, a) (B s))
-           bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (mapFunc (deltaABA aba))) alph) set)
+           bigAnd set alph = S.foldl boolAnd BTrue (S.map (flip (deltaABA aba) alph) set)
 
            --mapFunc :: Map (s, a) (B s) -> s -> a -> B s
            mapFunc m s a = M.findWithDefault BTrue (s, a) m

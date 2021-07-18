@@ -19,7 +19,8 @@ import Language.Python.Common.PrettyAST ()
 
 import Prettyprinter (Pretty (..))
 
-import StructuredText.ABA (ABA (..), B (..))
+import StructuredText.DFA (DFA (..), LDFA, toDFA)
+import StructuredText.Boolean (B (..))
 import StructuredText.ToABA (toABA)
 
 type Sto = [Text]
@@ -36,10 +37,10 @@ toPython :: STxt -> Either Err (Py.Module ())
 toPython = flip evalStateT [] . transSTxt
 
 transSTxt :: (MonadState Sto m, MonadError Err m) => STxt -> m (Py.Module ())
-transSTxt (STxt gs) = Py.Module <$> (((importABA:) . concat) <$> mapM transGlobal gs)
+transSTxt (STxt gs) = Py.Module <$> (((importDFA:) . concat) <$> mapM transGlobal gs)
 
-importABA :: Py.Statement ()
-importABA = Py.FromImport (Py.ImportRelative 0 (Just [Py.Ident "aba" ()]) ()) (Py.ImportEverything ()) ()
+importDFA :: Py.Statement ()
+importDFA = Py.FromImport (Py.ImportRelative 0 (Just [Py.Ident "dfa" ()]) ()) (Py.ImportEverything ()) ()
 
 transGlobal :: (MonadState Sto m, MonadError Err m) => Global -> m [Py.Statement ()]
 transGlobal = \ case
@@ -49,26 +50,26 @@ transGlobal = \ case
             ds' <- concat <$> mapM transParams ds
             let ltls' = map LTL.normalize ltls
             ltls'' <- mapM transLTLTerms ltls'
-            let abas = zip (map toABA ltls'') [0..]
-            ((concatMap (uncurry $ ltlGlob x') abas
-                  ++ map (uncurry $ ltlFun x' ds') abas) ++) . pure <$> (Py.Fun x' ds' Nothing <$> (putFId x *> mapM transStmt body) <*> pure ())
+            let dfas = zip (map (toDFA . toABA) ltls'') [0..]
+            ((concatMap (uncurry $ ltlGlob x') dfas
+                  ++ map (uncurry $ ltlFun x' ds') dfas) ++) . pure <$> (Py.Fun x' ds' Nothing <$> (putFId x *> mapM transStmt body) <*> pure ())
       Program x ds body               -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
       TypeDef {}                      -> throwError "transGlobal TypeDef: unimplemented"
       GlobalVars {}                   -> throwError "transGlobal GlobalVars: unimplemented"
 
-abaId :: Py.Ident () -> Int -> Py.Ident ()
-abaId (Py.Ident x _)  n = Py.Ident (x ++ "_ltl_aba_" ++ show n) ()
+dfaId :: Py.Ident () -> Int -> Py.Ident ()
+dfaId (Py.Ident x _)  n = Py.Ident (x ++ "_ltl_dfa_" ++ show n) ()
 
-ltlGlob :: Py.Ident () -> ABA (NormLTL (Py.Expr ())) (Set (Py.Expr ())) -> Int -> [Py.Statement ()]
-ltlGlob x aba n = [Py.Assign [pyVar (abaId x n)] abaInit ()]
-      where abaInit :: Py.Expr ()
-            abaInit = Py.Call abaClassVar
-                  [ Py.ArgExpr (pyB $ initABA aba) ()
-                  , Py.ArgExpr (Py.Dictionary (map pyDelta $ Map.toList $ deltaABA aba) ()) ()
+ltlGlob :: Py.Ident () -> LDFA (Py.Expr ()) -> Int -> [Py.Statement ()]
+ltlGlob x dfa n = [Py.Assign [pyVar (dfaId x n)] dfaInit ()]
+      where dfaInit :: Py.Expr ()
+            dfaInit = Py.Call dfaClassVar
+                  [ Py.ArgExpr (pyB $ currDFA dfa) ()
+                  , Py.ArgExpr (Py.Dictionary (map pyDelta $ Map.toList $ deltaDFA dfa) ()) ()
                   ] ()
 
-            abaClassVar :: Py.Expr ()
-            abaClassVar = pyVar' "ABA"
+            dfaClassVar :: Py.Expr ()
+            dfaClassVar = pyVar' "DFA"
 
             pyPair :: Py.Expr () -> Py.Expr () -> Py.Expr ()
             pyPair a b = Py.Paren (Py.Tuple [a, b] ()) ()
@@ -76,8 +77,8 @@ ltlGlob x aba n = [Py.Assign [pyVar (abaId x n)] abaInit ()]
             pySet :: [Py.Expr ()] -> Py.Expr ()
             pySet es = Py.Call (pyVar' "frozenset") [Py.ArgExpr (Py.Set es ()) ()] ()
 
-            pyDelta :: ((NormLTL (Py.Expr ()), Set (Py.Expr ())), B (NormLTL (Py.Expr ()))) -> Py.DictKeyDatumList ()
-            pyDelta ((ltl, es), b) = Py.DictMappingPair (pyPair (pyStringifyLTL ltl) (pySet $ map pyStringify (Set.toList es))) (pyB b)
+            pyDelta :: ((Int, Set (Py.Expr ())), Int) -> Py.DictKeyDatumList ()
+            pyDelta ((ltl, es), b) = Py.DictMappingPair (pyPair (pyB ltl) (pySet $ map pyStringify (Set.toList es))) (pyB b)
 
 -- | Add parens to a python expression. Makes a half-hearted attempt to remove redundant parens in the resulting
 --   expression
@@ -124,17 +125,20 @@ pyStringify e = Py.Strings [qq $ Py.prettyText e] ()
 pyStringifyLTL :: NormLTL (Py.Expr ()) -> Py.Expr ()
 pyStringifyLTL e = Py.Strings [qq $ show $ pretty $ fmap parens e] ()
 
-pyB :: B (NormLTL (Py.Expr ())) -> Py.Expr ()
-pyB = \ case
-      BTrue        -> Py.Call bnode [barg "TRUE"] ()
-      BFalse       -> Py.Call bnode [barg "FALSE"] ()
-      BTerm e      -> Py.Call bnode [barg "TERM", arg $ pyStringifyLTL e] ()
-      BAnd e1 e2   -> Py.Call bnode [barg "AND", arg $ pyB e1, arg $ pyB e2] ()
-      BOr e1 e2    -> Py.Call bnode [barg "OR", arg $ pyB e1, arg $ pyB e2] ()
-      where bnode  = pyVar (Py.Ident "BNode" ())
-            b      = pyVar (Py.Ident "B" ())
-            arg e  = Py.ArgExpr e ()
-            barg n = arg $ Py.Dot b (Py.Ident n ()) ()
+pyB :: Int -> Py.Expr ()
+pyB n = Py.Int (toInteger n) (show n) ()
+
+-- pyB :: B (NormLTL (Py.Expr ())) -> Py.Expr ()
+-- pyB = \ case
+--       BTrue        -> Py.Call bnode [barg "TRUE"] ()
+--       BFalse       -> Py.Call bnode [barg "FALSE"] ()
+--       BTerm e      -> Py.Call bnode [barg "TERM", arg $ pyStringifyLTL e] ()
+--       BAnd e1 e2   -> Py.Call bnode [barg "AND", arg $ pyB e1, arg $ pyB e2] ()
+--       BOr e1 e2    -> Py.Call bnode [barg "OR", arg $ pyB e1, arg $ pyB e2] ()
+--       where bnode  = pyVar (Py.Ident "BNode" ())
+--             b      = pyVar (Py.Ident "B" ())
+--             arg e  = Py.ArgExpr e ()
+--             barg n = arg $ Py.Dot b (Py.Ident n ()) ()
 
 pyVar :: Py.Ident () -> Py.Expr ()
 pyVar x = Py.Var x ()
@@ -142,11 +146,11 @@ pyVar x = Py.Var x ()
 pyVar' :: Text -> Py.Expr ()
 pyVar' x = pyVar (Py.Ident (unpack x) ())
 
-ltlFun :: Py.Ident () -> [Py.Parameter ()] -> ABA (NormLTL (Py.Expr ())) (Set (Py.Expr ())) -> Int -> Py.Statement ()
-ltlFun x ds aba n = Py.Fun funId (ds ++ [Py.Param x Nothing Nothing ()]) Nothing
-               [ Py.Global [abaId x n] ()
+ltlFun :: Py.Ident () -> [Py.Parameter ()] -> LDFA (Py.Expr ()) -> Int -> Py.Statement ()
+ltlFun x ds dfa n = Py.Fun funId (ds ++ [Py.Param x Nothing Nothing ()]) Nothing
+               [ Py.Global [dfaId x n] ()
                , Py.Assign [d] (Py.Dictionary (map keyVal atoms') ()) ()
-               , Py.Return (Just $ Py.Call (Py.Dot (pyVar $ abaId x n) (Py.Ident "accept_dict" ()) ()) [Py.ArgExpr d ()] ()) ()
+               , Py.Return (Just $ Py.Call (Py.Dot (pyVar $ dfaId x n) (Py.Ident "accept_dict" ()) ()) [Py.ArgExpr d ()] ()) ()
                ]
                ()
       where d :: Py.Expr ()
@@ -156,7 +160,7 @@ ltlFun x ds aba n = Py.Fun funId (ds ++ [Py.Param x Nothing Nothing ()]) Nothing
             funId = Py.Ident (Py.prettyText x ++ "_ltl_" ++ show n) ()
 
             atoms' :: [Py.Expr ()]
-            atoms' = Set.toList $ foldMap atoms (initABA aba)
+            atoms' = Set.toList $ Set.unions (alphaDFA dfa)
 
             keyVal :: Py.Expr () -> Py.DictKeyDatumList ()
             keyVal e = Py.DictMappingPair (pyStringify e) e

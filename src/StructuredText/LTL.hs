@@ -26,8 +26,10 @@ type Parser = Parsec Void Text
 class AtomicProp a where
       atTrue :: a
       atNot :: a -> a
+
       atEval :: a -> Maybe Bool
       atEval _ = Nothing
+
       atFalse :: a
       atFalse = atNot atTrue
 

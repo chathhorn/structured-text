@@ -6,10 +6,12 @@ module StructuredText.ToABA
       , o, p, r
       , boolset
       , dual
+      , LABA
       ) where
 
 import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atoms, BasicTerm (..))
-import StructuredText.ABA (ABA (..), B (..))
+import StructuredText.ABA (ABA (..))
+import StructuredText.Boolean (B (..))
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map.Strict (Map)
@@ -49,14 +51,20 @@ allReleases formulas = S.filter (\xs -> case xs of
                                        (ReleaseN _ _) -> True
                                        _              -> False) formulas
 
+type LABA a = ABA (NormLTL a) (Set a)
+
 --letters in the alphabet has type AP a where a is the type of each propositional atom
-toABA :: (AtomicProp a, Ord a) => NormLTL a -> ABA (NormLTL a) (Set a)
+toABA :: (AtomicProp a, Ord a) => NormLTL a -> LABA a
 toABA ltl = ABA { statesABA = negSub
-                , initABA   = BTerm ltl
+                , alphaABA  = alphabet
+                , currABA   = BTerm ltl
                 , finalABA  = allReleases negSub
-                , deltaABA  = funcMap transition (S.toList (S.cartesianProduct negSub (S.powerSet (atoms ltl))))
+                , deltaABA  = transition
+                -- , deltaABA  = funcMap transition (S.toList (S.cartesianProduct negSub alphabet))
                 }
       where negSub = S.union (subformulas ltl) (S.map negNormLTL (subformulas ltl))
+
+            alphabet = S.powerSet (atoms ltl)
 
             transition :: Ord a => NormLTL a -> Set a -> B (NormLTL a)
             transition formula alph = case formula of

@@ -1,15 +1,11 @@
 {-# LANGUAGE RankNTypes #-}
-
 module StructuredText.ABA
       ( ABA (..)
-      , B (..)
-      , simplify
-      , satisfy
-      , exists
-      , children
-      , acceptABA
-      , formulaRun, acceptABAwithRun
-      , aba1, set1, set2, set3, bs1, bs2, bs3
+      -- , acceptABA
+      , deltaP
+      -- , formulaRun, acceptABAwithRun
+      -- , aba1
+      , set1, set2, set3, bs1, bs2, bs3
       ) where
 
 import Prelude hiding (concat)
@@ -17,98 +13,15 @@ import qualified Data.Set as S
 import Data.Set (Set)
 import qualified Data.Map.Strict as M
 import Data.Map.Strict (Map)
-import Data.List (last, find)
 import StructuredText.LTL (AtomicProp (..), BasicTerm (..))
-import Test.QuickCheck (oneof, sized, Arbitrary (..), Gen)
-
-data B s = BTrue
-         | BFalse
-         | BTerm s
-         | BAnd (B s) (B s)
-         | BOr (B s) (B s)
-     deriving (Show, Ord, Eq)
-
-instance Foldable B where
-      foldMap f = \ case
-            BTerm a        -> f a
-            BAnd e1 e2     -> foldMap f e1 <> foldMap f e2
-            BOr e1 e2      -> foldMap f e1 <> foldMap f e2
-            _              -> mempty
-
-instance AtomicProp s => AtomicProp (B s) where
-      atTrue  = BTrue
-      atFalse = BFalse
-      atNot   = \ case
-            BTrue      -> BFalse
-            BFalse     -> BTrue
-            BTerm e    -> BTerm $ atNot e
-            BAnd e1 e2 -> BOr (atNot e1) (atNot e2)
-            BOr e1 e2  -> BAnd (atNot e1) (atNot e2)
-      atEval = \ case
-            BTrue      -> Just True
-            BFalse     -> Just False
-            BTerm e    -> atEval e
-            BAnd e1 e2 -> case (atEval e1, atEval e2) of
-                  (Just False, _) -> Just False
-                  (_, Just False) -> Just False
-                  (Just True, a)  -> a
-                  (a, Just True)  -> a
-                  _               -> Nothing
-            BOr e1 e2  -> case (atEval e1, atEval e2) of
-                  (Just True, _)  -> Just True
-                  (_, Just True)  -> Just True
-                  (Just False, a) -> a
-                  (a, Just False) -> a
-                  _               -> Nothing
-
-instance Arbitrary (B s) where
-     arbitrary = sized arbB
-
-arbB :: Int -> Gen (B s)
-arbB 0 = oneof [pure BTrue, pure BFalse]
-arbB n = do
-     a <- arbB (n - 1)
-     b <- arbB (n - 1)
-     oneof [pure (BAnd a b), pure (BOr a b)]
-
-simplify :: (AtomicProp s, Eq s) => B s -> B s
-simplify s | atEval s == Just True  = BTrue
-simplify s | atEval s == Just False = BFalse
-simplify (BAnd b1 b2)
-      | simplify b1 == simplify b2  = simplify b1
-simplify (BAnd b1 b2)               = BAnd (simplify b1) (simplify b2)
-simplify (BOr b1 b2)
-      | simplify b1 == simplify b2  = simplify b1
-simplify (BOr b1 b2)                = BOr (simplify b1) (simplify b2)
-simplify s                          = s
-
---does the set satisfy the boolean formula?
-satisfy :: (Ord s) => B s -> Set s -> Bool
-satisfy formula set = case formula of
-     BTrue          -> True
-     BFalse         -> False
-     BTerm b'       -> S.member b' set
-     BAnd b1 b2     -> (satisfy b1 set) && (satisfy b2 set)
-     BOr b1 b2      -> (satisfy b1 set) || (satisfy b2 set)
-
---does there exist an element of set satisfying condition?
-exists :: (Eq s) => (s -> Bool) -> Set s -> Bool
-exists condition set | find condition set == Nothing = False
-                     | otherwise                     = True
-
---is the given formula satisfied by any subset of the atoms?
-satisfied :: (AtomicProp s, Ord s) => B s -> Set s -> Bool
-satisfied formula atoms = exists (satisfy (simplify formula)) (S.powerSet atoms)
-
---what are all subsets of atoms that satisfy the formula?
-children :: (AtomicProp s, Ord s) => B s -> Set s -> Set (Set s)
-children formula atoms = S.filter (satisfy (simplify formula)) (S.powerSet atoms)
+import StructuredText.Boolean (B (..))
 
 data ABA state alph = ABA
-      { statesABA :: Set state
-      , initABA   :: B state -- BTerm s
-      , finalABA  :: Set state
-      , deltaABA  :: Map (state, alph) (B state)
+      { statesABA :: !(Set state)
+      , alphaABA  :: !(Set alph)
+      , currABA   :: !(B state) -- BTerm s
+      , finalABA  :: !(Set state)
+      , deltaABA  :: state -> alph -> B state
       }
 
 --Expand Map (s, a) (B s) to (B s -> a -> B s)
@@ -117,38 +30,38 @@ deltaP delta t a = case t of
      BTrue -> BTrue
      BFalse -> BFalse
      BTerm s -> M.findWithDefault BTrue (s, a) delta
-     BAnd b1 b2 -> BAnd (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
-     BOr b1 b2 -> BOr (deltaP delta (simplify b1) a) (deltaP delta (simplify b2) a)
+     BAnd b1 b2 -> BAnd (deltaP delta b1 a) (deltaP delta b2 a)
+     BOr b1 b2 -> BOr (deltaP delta b1 a) (deltaP delta b2 a)
 
 --does the ABA aut accept the input word?
 --if boolean expression BTrue, accept; if BFalse; reject; else continue run
-acceptABA :: (AtomicProp s, Ord s, Ord a) => ABA s a -> [a] -> Bool
-acceptABA aut (a : as) = case next_state of
-     BTrue     -> True
-     BFalse    -> False
-     _         -> acceptABA aut {initABA = next_state} as
-     where next_state = simplify (deltaP (deltaABA aut) (initABA aut) a)
-acceptABA aut [] = satisfied (initABA aut) (finalABA aut)
+-- acceptABA :: (AtomicProp s, Ord s, Ord a) => ABA s a -> [a] -> Bool
+-- acceptABA aut (a : as) = case next_state of
+--      BTrue     -> True
+--      BFalse    -> False
+--      _         -> acceptABA aut {currABA = next_state} as
+--      where next_state = simplify (deltaP (deltaABA aut) (currABA aut) a)
+-- acceptABA aut [] = satisfied (currABA aut) (finalABA aut)
 
 --what is thesequence of B s expressions generated by running word through an ABA aut?
-formulaRun :: (AtomicProp s, Ord s, Ord a) => ABA s a -> [a] -> [B s]
-formulaRun aut word = case word of
-     (a : as) -> simplify(initABA aut): formulaRun aut{initABA = deltaP (deltaABA aut) (initABA aut) a} as
-     []       -> [simplify (initABA aut)]
+-- formulaRun :: (AtomicProp s, Ord s, Ord a) => ABA s a -> [a] -> [B s]
+-- formulaRun aut word = case word of
+--      (a : as) -> simplify(currABA aut): formulaRun aut{currABA = deltaP (deltaABA aut) (currABA aut) a} as
+--      []       -> [simplify (currABA aut)]
 
 --is word accepted by automata? what is its formula-run?
 --uses formulaRun so entire run is generated
-acceptABAwithRun :: (AtomicProp s, Ord s, Ord a) => ABA s a -> [a] -> (Bool, [B s])
-acceptABAwithRun aut word = (satisfied (Data.List.last run) (finalABA aut), run)
-     where run = formulaRun aut word
+-- acceptABAwithRun :: (AtomicProp s, Ord s, Ord a) => ABA s a -> [a] -> (Bool, [B s])
+-- acceptABAwithRun aut word = (satisfied (Data.List.last run) (finalABA aut), run)
+--      where run = formulaRun aut word
 
 --for testing
 
 
-aba1 :: ABA Char Integer
-aba1 = ABA{statesABA = S.fromList['r','s','t'], initABA = BTerm 's', finalABA = S.fromList['t'], deltaABA = tran}
-      where tran :: Map (Char, Integer) (B Char)
-            tran =  M.fromList[(('r', 0), BOr (BAnd (BTerm 'r') (BTerm 's')) (BTerm 't')), (('r', 1), BOr (BTerm 'r') (BTerm 's')), (('s', 0), BAnd (BTerm 's') (BTerm 't')), (('s', 1), BTrue), (('t', 0), BFalse), (('t', 1), BTerm 'r')]
+-- aba1 :: ABA Char Integer
+-- aba1 = ABA{statesABA = S.fromList['r','s','t'], currABA = BTerm 's', finalABA = S.fromList['t'], deltaABA = tran}
+--       where tran :: Map (Char, Integer) (B Char)
+--             tran =  M.fromList[(('r', 0), BOr (BAnd (BTerm 'r') (BTerm 's')) (BTerm 't')), (('r', 1), BOr (BTerm 'r') (BTerm 's')), (('s', 0), BAnd (BTerm 's') (BTerm 't')), (('s', 1), BTrue), (('t', 0), BFalse), (('t', 1), BTerm 'r')]
 
 set1 :: Set Char
 set1 = S.fromList ['r', 's', 't']
@@ -167,3 +80,13 @@ bs2 = BOr BTrue (BTerm 'r')
 
 bs3 :: B Char
 bs3 = BAnd BFalse (BTerm 'r')
+
+bs4 :: B Char
+bs4 = BOr (BTerm 'a') (BTerm 'b')
+
+bs5 :: B Char
+bs5 = BAnd (BTerm 'x') (BTerm 'y')
+
+bs6 :: B Char
+bs6 = BOr bs2 bs3
+
