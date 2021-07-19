@@ -40,7 +40,7 @@ f :: a -> ([a] -> b) -> [a] -> b
 f _ prop = prop 
 
 --simplify is idempotent, applying the function twice gives the same result as applying once
-prop_simpl :: (AtomicProp s, Eq s) => B s -> Bool
+prop_simpl :: (AtomicProp s, Eq s, Ord s) => B s -> Bool
 prop_simpl b = simplify (simplify b) == simplify b
 
 --simplify does not change whether a set satisfies a formula

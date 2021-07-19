@@ -25,7 +25,7 @@ import Data.List (find)
 -- | ReleaseN (NormLTL a) (NormLTL a)
 -- | NextN    (NormLTL a)
 
-boolAnd :: (AtomicProp s, Eq s) => B s -> B s -> B s
+boolAnd :: (AtomicProp s, Eq s, Ord s) => B s -> B s -> B s
 boolAnd b1 b2 = simplify (BAnd b1 b2)
 
 toBuchi :: (AtomicProp s, Ord a, Ord s) => ABA s a -> NBA (Set s, Set s) a

@@ -1,10 +1,9 @@
 module StructuredText.Boolean
-      ( B (..)
+      ( B (..), DNF
       , simplify
       , satisfy
       , exists
       , children
-      , satSet
       , dnf, injectDNF
       ) where
 
@@ -21,101 +20,53 @@ data B s = BTrue
          | BOr (B s) (B s)
      deriving (Show, Ord, Eq)
 
-data BOr' s = BFalse' | BOr' (BAnd' s) (BOr' s)
-      deriving (Show, Ord, Eq)
+type DNF s = DnfOr s
+type DnfOr s  = Set (DnfAnd s)
+type DnfAnd s = Set s
 
-bor :: BOr' s -> BOr' s -> BOr' s
-bor BFalse' a               = a
-bor a BFalse'               = a
-bor (BOr' s a) (BOr' s' a') = BOr' s $ BOr' s' (bor a a')
+dnfFalse :: Ord a => DNF a
+dnfFalse = mempty      -- bottom
 
-data BAnd' s = BTrue' | BAnd' s (BAnd' s)
-      deriving (Show, Ord, Eq)
-
-instance Foldable BAnd' where
-      foldr f e (BAnd' s b) = f s (foldr f e b)
-      foldr _ e _           = e
-
-band :: BAnd' s -> BAnd' s -> BAnd' s
-band BTrue' a                  = a
-band a BTrue'                  = a
-band (BAnd' s a) (BAnd' s' a') = BAnd' s $ BAnd' s' (band a a')
+dnfTrue :: Ord a => DNF a
+dnfTrue  = S.singleton mempty -- top
 
 -- | Convert B expr to disjunctive normal form (OR of ANDs).
-dnf :: (Eq s, AtomicProp s) => B s -> BOr' s
+dnf :: (Ord s, Eq s, AtomicProp s) => B s -> DNF s
 dnf = simpl . \ case
-      BFalse           -> BFalse'
-      BTrue            -> BOr' BTrue' BFalse'
-      BTerm s          -> BOr' (BAnd' s BTrue') BFalse'
-      BOr a b          -> dnf a `bor` dnf b
+      BFalse           -> dnfFalse
+      BTrue            -> dnfTrue
+      BTerm s          -> S.singleton (S.singleton s)
+      BOr a b          -> dnf a <> dnf b
       BAnd a b         -> dnf a `bandOO` dnf b
-      where bandO :: BAnd' s -> BOr' s -> BOr' s
-            bandO a BFalse'    = BFalse'
-            bandO a (BOr' b c) = BOr' (a `band` b) (a `bandO` c)
+      where bandO :: Ord s => DnfAnd s -> DNF s -> DNF s
+            bandO a as = S.map (a<>) as
 
-            bandOO :: BOr' s -> BOr' s -> BOr' s
-            bandOO a BFalse'    = BFalse'
-            bandOO a (BOr' b c) = (b `bandO` a) `bor` (a `bandOO` c)
+            bandOO :: Ord s => DNF s -> DNF s -> DNF s
+            bandOO a b = foldMap (<>mempty) $ S.map (`bandO` a) b
 
--- | Simplify without AtomicProp constraint.
-simplSurface :: Eq s => BOr' s -> BOr' s
-simplSurface = \ case
-      BFalse'                      -> BFalse'
-      BOr' a _
-            | a == BTrue'          -> BOr' BTrue' BFalse'
-      BOr' a b                     -> case simplSurface b of
-            BOr' a' _ | a' == BTrue' -> BOr' BTrue' BFalse'
-            b'                       -> BOr' a b'
+-- | Remove all terms with a constant "true" or "false" value.
+simpl :: (Ord s, Eq s, AtomicProp s) => DNF s -> DNF s
+simpl = foldr simpl' mempty
+      where -- | ORs.
+            simpl' :: (Ord s, Eq s, AtomicProp s) => DnfAnd s -> DNF s -> DNF s
+            simpl' _ as | as == dnfTrue = dnfTrue
+            simpl' a as                 = case S.toList a' of
+                  [a] | atEval a == Just False -> as
+                  _                            -> S.singleton a' <> as
+                  where a' = foldr simpl'' mempty a
 
-simpl :: (Eq s, AtomicProp s) => BOr' s -> BOr' s
-simpl = \ case
-      BFalse'                      -> BFalse'
-      BOr' a b
-            | bandFalse a          -> simpl b
-      BOr' a _
-            | bandTrue a           -> BOr' BTrue' BFalse'
-      BOr' a b                     -> case simpl b of
-            BOr' a' _ | bandTrue a' -> BOr' BTrue' BFalse'
-            b'                      -> BOr' (simpl' a) b'
+            -- | ANDs.
+            simpl'' :: (Ord s, Eq s, AtomicProp s) => s -> DnfAnd s -> DnfAnd s
+            simpl'' a _  | atEval a == Just False = S.singleton atFalse
+            simpl'' a as | atEval a == Just True  = as
+            simpl'' a as = case S.toList as of
+                  [a] | atEval a == Just False -> as
+                  _                            -> S.singleton a <> as
 
-      where bandTrue :: (Eq s, AtomicProp s) => BAnd' s -> Bool
-            bandTrue b = simpl' b == BTrue'
-
-            bandFalse :: AtomicProp s => BAnd' s -> Bool
-            bandFalse b = case simpl' b of
-                  BAnd' a BTrue' -> atEval a == Just False
-                  _              -> False
-
-            simpl' :: AtomicProp s => BAnd' s -> BAnd' s
-            simpl' = \ case
-                  BTrue'                         -> BTrue'
-                  BAnd' a b
-                        | atEval a == Just True  -> simpl' b
-                  BAnd' a _
-                        | atEval a == Just False -> BAnd' atFalse BTrue'
-                  BAnd' a b                      -> case simpl' b of
-                        BAnd' a' _ | atEval a' == Just False -> BAnd' atFalse BTrue'
-                        b'                                   -> BAnd' a b'
-
-satSet :: (AtomicProp s, Ord s) => B s -> Set (Set s)
-satSet = S.map (foldr S.insert mempty) . bands . dnf
-      where bands :: Ord s => BOr' s -> Set (BAnd' s)
-            bands BFalse'    = mempty
-            bands (BOr' a b) = a `S.insert` bands b
-
-unSatSet :: (Ord s, AtomicProp s) => Set (Set s) -> B s
-unSatSet = injectDNF . simpl . toBOr'
-      where toBOr' :: Set (Set s) -> BOr' s
-            toBOr' = S.foldr (BOr' . (S.foldr BAnd' BTrue')) BFalse'
-
-injectDNF :: BOr' s -> B s
-injectDNF = \ case
-      BFalse'  -> BFalse
-      BOr' a b -> BOr (injectBAnd' a) (injectDNF b)
-      where injectBAnd' :: BAnd' s -> B s
-            injectBAnd' = \ case
-                  BTrue'    -> BTrue
-                  BAnd' a b -> BAnd (BTerm a) (injectBAnd' b)
+injectDNF :: DNF s -> B s
+injectDNF = foldr (BOr . injectAnd) BFalse
+      where injectAnd :: DnfAnd s -> B s
+            injectAnd = foldr (BAnd . BTerm) BTrue
 
 instance Foldable B where
       foldMap f = \ case
@@ -160,7 +111,7 @@ arbB n = do
      b <- arbB (n - 1)
      oneof [pure (BAnd a b), pure (BOr a b)]
 
-simplify :: (AtomicProp s, Eq s) => B s -> B s
+simplify :: (AtomicProp s, Eq s, Ord s) => B s -> B s
 simplify = injectDNF . dnf
 
 --does the set satisfy the boolean formula?
@@ -169,8 +120,8 @@ satisfy formula set = case formula of
      BTrue          -> True
      BFalse         -> False
      BTerm b'       -> S.member b' set
-     BAnd b1 b2     -> (satisfy b1 set) && (satisfy b2 set)
-     BOr b1 b2      -> (satisfy b1 set) || (satisfy b2 set)
+     BAnd b1 b2     -> satisfy b1 set && satisfy b2 set
+     BOr b1 b2      -> satisfy b1 set || satisfy b2 set
 
 --does there exist an element of set satisfying condition?
 exists :: (Eq s) => (s -> Bool) -> Set s -> Bool
