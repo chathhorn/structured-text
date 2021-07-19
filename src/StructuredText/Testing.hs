@@ -1,7 +1,7 @@
 module StructuredText.Testing
       ( f
-      , prop_RevRev
-      , prop_RevApp
+      -- , prop_RevRev
+      -- , prop_RevApp
       , prop_simpl
       , prop_simpl_sat
       -- , prop_aba_nba_equiv
@@ -10,34 +10,34 @@ module StructuredText.Testing
 
 -- import Test.QuickCheck (quickCheck, quickCheckWith, verboseCheck, verboseCheckWith, Arbitrary, stdArgs, Args)
 import Data.Set (Set)
-import StructuredText.ABA 
-      ( ABA (..)
-      -- , acceptABA
-      )
+-- import StructuredText.ABA
+--       ( ABA (..)
+--       -- , acceptABA
+--       )
 import StructuredText.Boolean
       ( B (..)
       , simplify
       , satisfy
       )
-import StructuredText.Buchi (acceptNBA)
+-- import StructuredText.Buchi (acceptNBA)
 -- import StructuredText.ToABA (toABA)
 import StructuredText.LTL (AtomicProp (..))
-import StructuredText.ToBuchi 
-       ( toBuchi
---       --, ltlVardi, phi
-       )
+-- import StructuredText.ToBuchi
+--        ( toBuchi
+-- --       --, ltlVardi, phi
+--        )
 
 --testing quickCheck
 
-prop_RevRev :: (Eq a) => [a] -> Bool
-prop_RevRev xs = reverse (reverse xs) == xs
-
-prop_RevApp :: (Eq a) => [a] -> [a] -> Bool
-prop_RevApp xs ys = reverse (xs ++ ys) == reverse ys ++ reverse xs
+-- prop_RevRev :: (Eq a) => [a] -> Bool
+-- prop_RevRev xs = reverse (reverse xs) == xs
+--
+-- prop_RevApp :: (Eq a) => [a] -> [a] -> Bool
+-- prop_RevApp xs ys = reverse (xs ++ ys) == reverse ys ++ reverse xs
 
 --passing type argument to properties
 f :: a -> ([a] -> b) -> [a] -> b
-f _ prop = prop 
+f _ prop = prop
 
 --simplify is idempotent, applying the function twice gives the same result as applying once
 prop_simpl :: (AtomicProp s, Eq s, Ord s) => B s -> Bool

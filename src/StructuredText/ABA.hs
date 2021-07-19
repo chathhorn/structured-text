@@ -5,7 +5,7 @@ module StructuredText.ABA
       , deltaP
       -- , formulaRun, acceptABAwithRun
       -- , aba1
-      , set1, set2, set3, bs1, bs2, bs3
+      , set1, set2, set3, bs1, bs2, bs3, bs4, bs5, bs6
       ) where
 
 import Prelude hiding (concat)
@@ -13,7 +13,7 @@ import qualified Data.Set as S
 import Data.Set (Set)
 import qualified Data.Map.Strict as M
 import Data.Map.Strict (Map)
-import StructuredText.LTL (AtomicProp (..), BasicTerm (..))
+import StructuredText.LTL (AtomicProp (..))
 import StructuredText.Boolean (B (..))
 
 data ABA state alph = ABA

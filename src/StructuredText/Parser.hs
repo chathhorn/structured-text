@@ -33,7 +33,7 @@ global = try functionBlock
       <|> try globalVars
 
 ltl :: Parser (LTL.LTL Expr)
-ltl = (symbol' "//" *> symbol' "LTL" *> symbol' ":" *> LTL.parseLtl expr)
+ltl = symbol' "//" *> symbol' "LTL" *> symbol' ":" *> LTL.parseLtl expr
 
 functionBlock :: Parser Global
 functionBlock = do
@@ -123,31 +123,28 @@ typedNames = try noLocNames
       <|> try (pure <$> singleLocName)
       <|> try (pure <$> typedLocation)
 
+typedInit :: Parser (Type, Maybe Init)
+typedInit = (,) <$> declType <*> (maybeInit <* semi)
+
 noLocNames :: Parser [TypedName]
 noLocNames = do
-      xs <- commas ident
-      t <- declType
-      i <- maybeInit
-      semi
+      xs     <- commas ident
+      (t, i) <- typedInit
       pure $ map (\ x -> TypedName x Nothing t i) xs
 
 singleLocName :: Parser TypedName
 singleLocName = do
-      x <- ident
+      x      <- ident
       symbol' "AT" $> ()
-      loc <- location
-      t <- declType
-      i <- maybeInit
-      semi
+      loc    <- location
+      (t, i) <- typedInit
       pure $ TypedName x (Just loc) t i
 
 typedLocation :: Parser TypedName
 typedLocation = do
       symbol' "AT" $> ()
-      loc <- location
-      t <- declType
-      i <- maybeInit
-      semi
+      loc    <- location
+      (t, i) <- typedInit
       pure $ TypedLocation loc t i
 
 maybeInit :: Parser (Maybe Init)
@@ -419,16 +416,16 @@ integer :: Parser Int
 integer = try hexadecimal <|> try binary <|> try octal <|> try decimal
 
 binary :: Parser Int
-binary = two *> hash *> (L.signed space $ L.lexeme space L.binary)
+binary = two *> hash *> L.signed space (L.lexeme space L.binary)
 
 octal :: Parser Int
-octal = eight *> hash *> (L.signed space $ L.lexeme space L.octal)
+octal = eight *> hash *> L.signed space (L.lexeme space L.octal)
 
 decimal :: Parser Int
 decimal = L.signed space $ L.lexeme space L.decimal
 
 hexadecimal :: Parser Int
-hexadecimal = sixteen *> hash *> (L.signed space $ L.lexeme space L.hexadecimal)
+hexadecimal = sixteen *> hash *> L.signed space (L.lexeme space L.hexadecimal)
 
 float :: Parser Double
 float = L.signed space $ L.lexeme space L.float
@@ -459,11 +456,9 @@ ident = do
       pure $ singleton x <> xs
 
 location :: Parser Location
-location =
-      (   try (InputLoc  <$> (symbol "%I" *> locAddr <* space))
-      <|> try (OutputLoc <$> (symbol "%Q" *> locAddr <* space))
-      <|> try (MemoryLoc <$> (symbol "%M" *> locAddr <* space))
-      )
+location = try (InputLoc  <$> (symbol "%I" *> locAddr <* space))
+       <|> try (OutputLoc <$> (symbol "%Q" *> locAddr <* space))
+       <|> try (MemoryLoc <$> (symbol "%M" *> locAddr <* space))
 
 locAddr :: Parser Text
 locAddr = takeWhileP (Just "legal physical or logical variable location address character") isLocAddrChar

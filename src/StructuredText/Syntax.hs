@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Prettyprinter ((<+>), Pretty (..))
 import qualified StructuredText.LTL as LTL
 
-data STxt = STxt [Global]
+newtype STxt = STxt [Global]
       deriving (Eq, Show)
 
 instance Pretty STxt where

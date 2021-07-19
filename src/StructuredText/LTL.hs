@@ -205,7 +205,7 @@ instance AtomicProp a => AtomicProp (NormLTL a) where
 negNormLTL :: (AtomicProp a) => NormLTL a -> NormLTL a
 negNormLTL ltl = case ltl of
      TermN a        -> TermN (atNot a)
-     AndN e1 e2     -> OrN (negNormLTL e1) (negNormLTL e2) 
+     AndN e1 e2     -> OrN (negNormLTL e1) (negNormLTL e2)
      OrN e1 e2      -> AndN (negNormLTL e1) (negNormLTL e2)
      UntilN e1 e2   -> ReleaseN (negNormLTL e1) (negNormLTL e2)
      ReleaseN e1 e2 -> UntilN (negNormLTL e1) (negNormLTL e2)

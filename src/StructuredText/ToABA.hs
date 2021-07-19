@@ -9,7 +9,7 @@ module StructuredText.ToABA
       , LABA
       ) where
 
-import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atoms, BasicTerm (..))
+import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atoms)
 import StructuredText.ABA (ABA (..))
 import StructuredText.Boolean (B (..))
 import Data.Set (Set)
@@ -39,17 +39,17 @@ dual formula = case formula of
 subformulas :: Ord a => NormLTL a -> Set (NormLTL a)
 subformulas ltl = case ltl of
      TermN a      -> S.singleton (TermN a)
-     AndN a b     -> S.unions [S.singleton (AndN a b),   (subformulas a), (subformulas b)]
-     OrN a b      -> S.unions [S.singleton (OrN a b),    (subformulas a), (subformulas b)]
-     UntilN a b   -> S.unions [S.singleton (UntilN a b), (subformulas a), (subformulas b)]
-     ReleaseN a b -> S.unions [S.singleton (ReleaseN a b), (subformulas a), (subformulas b)]
-     NextN a      -> S.union  (S.singleton (NextN a))    (subformulas a)
+     AndN a b     -> S.unions [S.singleton (AndN a b),     subformulas a, subformulas b]
+     OrN a b      -> S.unions [S.singleton (OrN a b),      subformulas a, subformulas b]
+     UntilN a b   -> S.unions [S.singleton (UntilN a b),   subformulas a, subformulas b]
+     ReleaseN a b -> S.unions [S.singleton (ReleaseN a b), subformulas a, subformulas b]
+     NextN a      -> S.union  (S.singleton (NextN a))    $ subformulas a
      --RJ elimNeg NegN a       -> S.union  (S.singleton (NegN a))     (subformulas a)
 
 allReleases :: Set (NormLTL a) -> Set (NormLTL a)
-allReleases formulas = S.filter (\xs -> case xs of
-                                       (ReleaseN _ _) -> True
-                                       _              -> False) formulas
+allReleases = S.filter $ \ case
+      ReleaseN _ _ -> True
+      _            -> False
 
 type LABA a = ABA (NormLTL a) (Set a)
 
@@ -77,7 +77,7 @@ toABA ltl = ABA { statesABA = negSub
 
 funcMap :: (Ord a, Ord b) => (a -> b -> c) -> [(a, b)] -> Map (a, b) c
 funcMap func list = case list of
-     x : xs -> M.insert x (func (fst x) (snd x)) (funcMap func xs)
+     x : xs -> M.insert x (uncurry func x) (funcMap func xs)
      []     -> M.empty
 
 --TESTING

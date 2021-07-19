@@ -10,7 +10,7 @@ import Control.Monad.State.Class (MonadState, gets, modify)
 import Control.Monad.Trans.State.Strict (evalStateT)
 import Control.Monad.Except (MonadError (..))
 import StructuredText.Syntax
-import StructuredText.LTL (AtomicProp (..), NormLTL (..), atoms)
+import StructuredText.LTL (AtomicProp (..), NormLTL (..))
 import qualified StructuredText.LTL as LTL
 import Text.Casing (quietSnake)
 import qualified Language.Python.Common.AST as Py
@@ -20,7 +20,6 @@ import Language.Python.Common.PrettyAST ()
 import Prettyprinter (Pretty (..))
 
 import StructuredText.DFA (DFA (..), LDFA, toDFA)
-import StructuredText.Boolean (B (..))
 import StructuredText.ToABA (toABA)
 
 type Sto = [Text]
@@ -37,7 +36,7 @@ toPython :: STxt -> Either Err (Py.Module ())
 toPython = flip evalStateT [] . transSTxt
 
 transSTxt :: (MonadState Sto m, MonadError Err m) => STxt -> m (Py.Module ())
-transSTxt (STxt gs) = Py.Module <$> (((importDFA:) . concat) <$> mapM transGlobal gs)
+transSTxt (STxt gs) = Py.Module <$> ((importDFA:) . concat <$> mapM transGlobal gs)
 
 importDFA :: Py.Statement ()
 importDFA = Py.FromImport (Py.ImportRelative 0 (Just [Py.Ident "dfa" ()]) ()) (Py.ImportEverything ()) ()
@@ -218,7 +217,7 @@ transStmt = \ case
             if r then Py.Return <$> (pure <$> transExpr rhs) <*> pure ()
                  else Py.Assign <$> (pure <$> transLVal lhs) <*> transExpr rhs <*> pure ()
       Invoke {}                -> throwError "transStmt Invoke: unimplemented"
-      Return                   -> Py.Return <$> pure Nothing <*> pure ()
+      Return                   -> pure $ Py.Return Nothing ()
       If e thn [] els          -> Py.Conditional <$> ((\ a b -> [(a,b)]) <$> transExpr e <*> mapM transStmt thn) <*> mapM transStmt els <*> pure ()
       If {}                    -> throwError "transStmt: If"
       Case {}                  -> throwError "transStmt Case: unimplemented"
@@ -230,8 +229,8 @@ transStmt = \ case
             body' <- mapM transStmt body
             pure $ Py.While (Py.Bool True ()) (body' ++ [Py.Conditional [(c', [Py.Break ()])] [] ()]) [] ()
       LTL ltl                  -> pure $ Py.StmtExpr (Py.Strings ["# " , show ltl] ()) ()
-      Exit                     -> Py.Return <$> pure Nothing <*> pure () -- TODO: how would it be different from return?
-      Empty                    -> Py.Pass <$> pure ()
+      Exit                     -> pure $ Py.Return Nothing () -- TODO: how would it be different from return?
+      Empty                    -> pure $ Py.Pass ()
 
 transInit :: MonadError Err m => Init -> m (Py.Expr ())
 transInit = \ case

@@ -14,7 +14,6 @@ import StructuredText.Boolean (B (..), simplify, satisfy)
 import StructuredText.Buchi (NBA (..))
 import Data.Set (Set)
 import qualified Data.Set as S
-import qualified Data.Map.Strict as M
 import Data.List (find)
 
 -- NormLTL a =
@@ -47,22 +46,19 @@ toBuchi aba = NBA { statesNBA = states
            tfilter (u, v) alph (u', v') = not (S.null (S.filter (tfilter2 (u, v) alph (u', v')) states))
 
            --tfilter2 :: (Set s, Set s) -> a -> (Set s, Set s) -> (Set s, Set s) -> Bool
-           tfilter2 (u, v) alph (u', v') (x, y) | (S.null u) = satisfy (bigAnd v alph) y
-                                                             && u' == S.difference y (finalABA aba)
-                                                             && v' == S.intersection y (finalABA aba)
-                                                | otherwise  = satisfy (bigAnd u alph) x
-                                                             && satisfy (bigAnd v alph) y
-                                                             && u' == S.difference x (finalABA aba)
-                                                             && v' == S.union y (S.intersection x (finalABA aba))
+           tfilter2 (u, v) alph (u', v') (x, y) | S.null u  = satisfy (bigAnd v alph) y
+                                                            && u' == S.difference y (finalABA aba)
+                                                            && v' == S.intersection y (finalABA aba)
+                                                | otherwise = satisfy (bigAnd u alph) x
+                                                            && satisfy (bigAnd v alph) y
+                                                            && u' == S.difference x (finalABA aba)
+                                                            && v' == S.union y (S.intersection x (finalABA aba))
 
            --bigAnd :: Set s -> a -> B s
            --bigAnd set alph = S.foldl boolAnd BTrue (S.map ((flip (deltaABA aba)) alph) set)
 
            --bigAnd :: Set s -> a -> B s (deltaABA :: Map (s, a) (B s))
            bigAnd set alph = S.foldl boolAnd BTrue (S.map (flip (deltaABA aba) alph) set)
-
-           --mapFunc :: Map (s, a) (B s) -> s -> a -> B s
-           mapFunc m s a= M.findWithDefault BTrue (s, a) m
 
 --trying to make toBuchi more efficient
 
@@ -108,9 +104,6 @@ toBuchi2 aba = NBA { statesNBA = states
 
            --bigAnd :: Set s -> a -> B s (deltaABA :: Map (s, a) (B s))
            bigAnd set alph = S.foldl boolAnd BTrue (S.map (flip (deltaABA aba) alph) set)
-
-           --mapFunc :: Map (s, a) (B s) -> s -> a -> B s
-           mapFunc m s a = M.findWithDefault BTrue (s, a) m
 
 --need to defined instance Eq (NBA s a) for this to work
 --toBuchiEquiv :: NormLTL a -> Bool
