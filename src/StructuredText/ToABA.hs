@@ -9,7 +9,7 @@ module StructuredText.ToABA
       , LABA
       ) where
 
-import StructuredText.LTL (AtomicProp (..), NormLTL (..), negNormLTL, atoms)
+import StructuredText.LTL (AtomicProp (..), NormLTL (..), atoms)
 import StructuredText.ABA (ABA (..))
 import StructuredText.Boolean (B (..))
 import Data.Set (Set)
@@ -31,7 +31,7 @@ dual :: AtomicProp a => B (NormLTL a) -> B (NormLTL a)
 dual formula = case formula of
      BTrue        -> BFalse
      BFalse       -> BTrue
-     BTerm b      -> BTerm (negNormLTL b)
+     BTerm b      -> BTerm (atNot b)
      BAnd b1 b2   -> BOr (dual b1) (dual b2)
      BOr b1 b2    -> BAnd (dual b1) (dual b2)
 
@@ -62,7 +62,7 @@ toABA ltl = ABA { statesABA = negSub
                 , deltaABA  = transition
                 -- , deltaABA  = funcMap transition (S.toList (S.cartesianProduct negSub alphabet))
                 }
-      where negSub = S.union (subformulas ltl) (S.map negNormLTL (subformulas ltl))
+      where negSub = S.union (subformulas ltl) (S.map atNot (subformulas ltl))
 
             alphabet = S.powerSet (atoms ltl)
 

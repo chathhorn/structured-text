@@ -2,7 +2,7 @@ module StructuredText.LTL
       ( parseLtl
       , LTL (..)
       , BasicTerm (..), basicTerm
-      , NormLTL (..), negNormLTL, normalize
+      , NormLTL (..), normalize
       , AtomicProp (..)
       , atoms
       ) where
@@ -201,15 +201,6 @@ instance AtomicProp a => AtomicProp (NormLTL a) where
                   (a, Just True)  -> a
                   _               -> Nothing
             NextN a               -> atEval a
-
-negNormLTL :: (AtomicProp a) => NormLTL a -> NormLTL a
-negNormLTL ltl = case ltl of
-     TermN a        -> TermN (atNot a)
-     AndN e1 e2     -> OrN (negNormLTL e1) (negNormLTL e2)
-     OrN e1 e2      -> AndN (negNormLTL e1) (negNormLTL e2)
-     UntilN e1 e2   -> ReleaseN (negNormLTL e1) (negNormLTL e2)
-     ReleaseN e1 e2 -> UntilN (negNormLTL e1) (negNormLTL e2)
-     NextN e1       -> NextN (negNormLTL e1)
 
 atoms :: (AtomicProp a, Ord a) => NormLTL a -> Set a
 atoms = \ case
