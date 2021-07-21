@@ -50,13 +50,17 @@ opTable =
         , prefix "¬"  Not
         , prefix "[]" Always
         , prefix "□"  Always
+        , prefix "G"  Always
         , prefix "<>" Eventually
         , prefix "◇"  Eventually
+        , prefix "F"  Eventually
         , prefix "()" Next
         , prefix "◯"  Next
         ]
       , [ binop "U"   Until
         , binop "⋃"   Until
+        ]
+      , [ binop "R"   Release
         ]
       , [ binop "/\\" And
         , binop "∧"   And

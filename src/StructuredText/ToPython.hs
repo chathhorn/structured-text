@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module StructuredText.ToPython ( toPython ) where
+module StructuredText.ToPython ( toPython, pyStringifyLTL ) where
 
 import Data.Text (Text, unpack)
 import Data.Set (Set)

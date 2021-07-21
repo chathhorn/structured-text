@@ -1,14 +1,7 @@
 module StructuredText.ToSTxt ( toSTxt ) where
 
 import qualified StructuredText.Syntax as ST
+import StructuredText.DFA (DFA (..))
 
-import qualified Data.Set as S
-import Data.Set (Set)
-import qualified Data.Map.Strict as M
-import Data.Map.Strict (Map)
-import StructuredText.LTL (AtomicProp (..), NormLTL (..), atoms, BasicTerm (..))
-import StructuredText.ABA (ABA (..), deltaP)
-import StructuredText.ToABA (LABA)
-import StructuredText.Boolean (B (..))
-
+toSTxt :: DFA a -> ST.Global
 toSTxt = undefined

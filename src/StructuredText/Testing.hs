@@ -2,30 +2,22 @@ module StructuredText.Testing
       ( f
       -- , prop_RevRev
       -- , prop_RevApp
-      , prop_simpl
-      , prop_simpl_sat
+      -- , prop_simpl
+      -- , prop_simpl_sat
       -- , prop_aba_nba_equiv
       -- , prop_Vardi
+      , prop_trans_correct
+      , cantoraba
       ) where
 
 -- import Test.QuickCheck (quickCheck, quickCheckWith, verboseCheck, verboseCheckWith, Arbitrary, stdArgs, Args)
+import qualified Data.Set as S
 import Data.Set (Set)
--- import StructuredText.ABA
---       ( ABA (..)
---       -- , acceptABA
---       )
-import StructuredText.Boolean
-      ( B (..)
-      , simplify
-      , satisfy
-      )
--- import StructuredText.Buchi (acceptNBA)
+import qualified Data.Map.Strict as M
+import Data.Map.Strict (Map)
+import StructuredText.Buchi (NBA (..))
 import StructuredText.ToABA (toABA)
 import StructuredText.LTL (NormLTL (..), AtomicProp (..), satisfies)
--- import StructuredText.ToBuchi
---        ( toBuchi
--- --       --, ltlVardi, phi
---        )
 
 import StructuredText.DFA (DFA (..), accept, toDFA)
 
@@ -42,14 +34,14 @@ f :: a -> ([a] -> b) -> [a] -> b
 f _ prop = prop
 
 --simplify is idempotent, applying the function twice gives the same result as applying once
-prop_simpl :: (AtomicProp s, Eq s, Ord s) => B s -> Bool
-prop_simpl b = simplify (simplify b) == simplify b
+-- prop_simpl :: (AtomicProp s, Eq s, Ord s) => B s -> Bool
+-- prop_simpl b = simplify (simplify b) == simplify b
 
 --simplify does not change whether a set satisfies a formula
 --needs to be able to generate arbitrary B s and Set s instances
 
-prop_simpl_sat :: (AtomicProp s, Eq s, Ord s) => B s -> Set s -> Bool
-prop_simpl_sat formula set = satisfy (simplify formula) set == satisfy formula set
+-- prop_simpl_sat :: (AtomicProp s, Eq s, Ord s) => B s -> Set s -> Bool
+-- prop_simpl_sat formula set = satisfies set (simplify formula) == satisfies set formula
 
 --an ABA and its equivalent NBA accept the same strings
 -- prop_aba_nba_equiv :: (AtomicProp s, Eq a, Ord a, Ord s) => ABA s a -> [a] -> Bool
@@ -67,3 +59,10 @@ trans = toDFA . toABA
 prop_trans_correct :: (Ord a, AtomicProp a) => NormLTL a -> [Set a] -> Bool
 prop_trans_correct p m = satisfies m p == accept (trans p) m
 
+cantoraba :: NBA String Integer
+cantoraba = NBA {statesNBA = S.fromList ["state 0", "state 1"] , initsNBA = S.fromList ["state 0"] , finalNBA = S.fromList["state 0"] , deltaNBA = tranFunc}
+      where tranFunc :: String -> Integer -> Set String
+            tranFunc s a = M.findWithDefault S.empty (s, a) tran
+
+            tran :: Map (String, Integer) (Set String)
+            tran = M.fromList[(("state 0", 0), S.singleton "state 0" ), (("state 0", 1), S.singleton "state 1"), (("state 0", 2), S.singleton "state 0")]
