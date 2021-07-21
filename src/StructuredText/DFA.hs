@@ -12,6 +12,7 @@ import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
 import Data.List (foldl')
 import Control.Arrow ((&&&), first)
+import Control.Monad (join)
 import StructuredText.LTL (AtomicProp (..))
 import StructuredText.ABA (ABA (..))
 import StructuredText.Boolean (dnf, B (..), injectDNF, DNF)
@@ -60,14 +61,9 @@ toABA' aba = ABA'
                   where s' = s `S.union` ss
                         ss' = S.map (uncurry f) (S.cartesianProduct ss bs) S.\\ s'
 
-
-deltaP' :: (AtomicProp s, Eq s, Ord s, Ord a) => (s -> a -> B s) -> B s -> a -> B s
-deltaP' delta t a = case t of
-     BTrue -> BTrue
-     BFalse -> BFalse
-     BTerm s -> delta s a
-     BAnd b1 b2 -> BAnd (deltaP' delta b1 a) (deltaP' delta b2 a)
-     BOr b1 b2 -> BOr (deltaP' delta b1 a) (deltaP' delta b2 a)
+            -- | Map the transition function onto the terms in the boolean expression.
+            deltaP' :: (s -> a -> B s) -> B s -> a -> B s
+            deltaP' delta b a = join $ delta <$> b <*> pure a
 
 type LDFA a = DFA (Set a)
 

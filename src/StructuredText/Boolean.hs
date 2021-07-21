@@ -68,12 +68,35 @@ injectDNF = foldr (BOr . injectAnd) BFalse
       where injectAnd :: DnfAnd s -> B s
             injectAnd = foldr (BAnd . BTerm) BTrue
 
+instance Functor B where
+      fmap f = \ case
+            BTerm a    -> BTerm $ f a
+            BAnd e1 e2 -> BAnd (fmap f e1) (fmap f e2)
+            BOr e1 e2  -> BOr  (fmap f e1) (fmap f e2)
+            BTrue      -> BTrue
+            BFalse     -> BFalse
+
 instance Foldable B where
       foldMap f = \ case
             BTerm a        -> f a
             BAnd e1 e2     -> foldMap f e1 <> foldMap f e2
             BOr e1 e2      -> foldMap f e1 <> foldMap f e2
             _              -> mempty
+
+instance Applicative B where
+      pure = BTerm
+      BTerm f    <*> a = fmap f a
+      BAnd e1 e2 <*> a = BAnd (e1 <*> a) (e2 <*> a)
+      BOr e1 e2  <*> a = BOr (e1 <*> a) (e2 <*> a)
+      BTrue      <*> _ = BTrue  -- TODO think about these cases
+      BFalse     <*> _ = BFalse -- TODO
+
+instance Monad B where
+      BTerm a >>= f    = f a
+      BAnd e1 e2 >>= f = BAnd (e1 >>= f) (e2 >>= f)
+      BOr e1 e2 >>= f  = BOr (e1 >>= f) (e2 >>= f)
+      BTrue >>= _      = BTrue  -- TODO think about these cases
+      BFalse >>= _     = BFalse -- TODO
 
 instance AtomicProp s => AtomicProp (B s) where
       atTrue  = BTrue

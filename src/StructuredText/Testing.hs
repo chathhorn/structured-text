@@ -27,7 +27,7 @@ import StructuredText.LTL (NormLTL (..), AtomicProp (..), satisfies)
 -- --       --, ltlVardi, phi
 --        )
 
-import StructuredText.DFA (DFA (..), accept, transition, toDFA)
+import StructuredText.DFA (DFA (..), accept, toDFA)
 
 --testing quickCheck
 
