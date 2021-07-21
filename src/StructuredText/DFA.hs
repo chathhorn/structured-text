@@ -6,20 +6,20 @@ module StructuredText.DFA
       ) where
 
 import qualified Data.Set as S
-import Data.Set (Set)
+import Data.Set (Set, (\\))
 import qualified Data.Map.Strict as M
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
 import Data.List (foldl')
-import Control.Arrow ((&&&), first)
+import Control.Arrow ((&&&), (***), first)
 import Control.Monad (join)
 import StructuredText.LTL (AtomicProp (..))
 import StructuredText.ABA (ABA (..))
-import StructuredText.Boolean (dnf, B (..), injectDNF, DNF)
+import StructuredText.Boolean (dnf, B (..), simplify, DNF)
 
--- import Debug.Trace (trace)
-trace :: String -> a -> a
-trace _ = id
+import Debug.Trace (trace)
+-- trace :: String -> a -> a
+-- trace _ = id
 
 -- | Intermediate DFA, where states are represented as DNF formulas (sets of sets).
 data ABA' s a = ABA'
@@ -39,31 +39,28 @@ toABA' aba = ABA'
       , deltaABA'  = mapify
       }
       where -- mapify :: (B s -> a -> B s) -> Map (DNF s, a) (DNF s)
-            mapify = M.fromAscList $ S.toAscList (S.map (first dnf &&& dnf . uncurry d) allCases)
+            mapify = M.fromAscList $ S.toAscList (S.map (first dnf &&& dnf . uncurry deltaP) allCases)
 
             -- allCases :: Set (B s, a)
             allCases = S.cartesianProduct allStates (alphaABA aba)
 
             -- allStates :: Set (B s)
-            allStates = S.singleton BFalse `S.union` iter2 d (S.singleton $ currABA aba) (alphaABA aba)
+            allStates = S.singleton BFalse `S.union` iter2 deltaP (S.singleton $ currABA aba) (alphaABA aba)
 
-            -- d :: B s -> a -> B s
-            d s = injectDNF . dnf . deltaP' (deltaABA aba) s
-
-            -- | s U map f (s x bs) U map f (map f (s x bs)) U ... until fixed point reached.
+            -- | s U (map f (s x bs)) U (map f (map f (s x bs))) U ... until fixed point reached.
             iter2 :: Ord a => (a -> b -> a) -> Set a -> Set b -> Set a
             iter2 f s bs = iter2' f s ss bs
-                  where ss = S.map (uncurry f) (S.cartesianProduct s bs) S.\\ s
+                  where ss = S.map (uncurry f) (S.cartesianProduct s bs) \\ s
 
             iter2' :: Ord a => (a -> b -> a) -> Set a -> Set a -> Set b -> Set a
-            iter2' f s ss bs = trace (show (S.size s) ++ ": " ++ show (S.size ss) ++ " x " ++ show (S.size bs)) $
-                        if S.size ss == 0 then s else iter2' f s' ss' bs
-                  where s' = s `S.union` ss
-                        ss' = S.map (uncurry f) (S.cartesianProduct ss bs) S.\\ s'
+            iter2' f s ss bs = trace (show (S.size s) ++ ": " ++ show (S.size ss) ++ " x " ++ show (S.size bs))
+                        $ if S.size ss == 0 then s else iter2' f s' ss' bs
+                  where s'  = s `S.union` ss
+                        ss' = S.map (uncurry f) (S.cartesianProduct ss bs) \\ s'
 
-            -- | Map the transition function onto the terms in the boolean expression.
-            deltaP' :: (s -> a -> B s) -> B s -> a -> B s
-            deltaP' delta b a = join $ delta <$> b <*> pure a
+            -- | Map the transition function onto the terms in the boolean expression and reduce.
+            -- deltaP :: B s -> a -> B s
+            deltaP s = simplify . join . (deltaABA aba <$> s <*>) . pure
 
 type LDFA a = DFA (Set a)
 
@@ -82,7 +79,7 @@ toDFA' aba = DFA
       , alphaDFA  = alphaABA' aba
       , currDFA   = toTag (currABA' aba)
       , finalDFA  = S.map toTag $ S.filter (any (`S.isSubsetOf` finalABA' aba)) (statesABA' aba)
-      , deltaDFA  = M.fromAscList $ map (\ ((t, a), v) -> ((toTag t, a), toTag v)) (M.toAscList $ deltaABA' aba)
+      , deltaDFA  = M.fromAscList $ map (first toTag *** toTag) (M.toAscList $ deltaABA' aba)
       }
       where toTag = fromMaybe (-1) . flip S.lookupIndex (statesABA' aba)
 

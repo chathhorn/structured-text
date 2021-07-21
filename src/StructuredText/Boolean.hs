@@ -12,6 +12,7 @@ import StructuredText.LTL (AtomicProp (..))
 import qualified Data.Set as S
 import Data.List (find)
 import Data.Set (Set)
+import Data.Foldable (fold)
 
 data B s = BTrue
          | BFalse
@@ -25,7 +26,7 @@ type DnfOr s  = Set (DnfAnd s)
 type DnfAnd s = Set s
 
 dnfFalse :: Ord a => DNF a
-dnfFalse = mempty      -- bottom
+dnfFalse = mempty -- bottom
 
 dnfTrue :: Ord a => DNF a
 dnfTrue  = S.singleton mempty -- top
@@ -37,12 +38,9 @@ dnf = simpl . \ case
       BTrue            -> dnfTrue
       BTerm s          -> S.singleton (S.singleton s)
       BOr a b          -> dnf a <> dnf b
-      BAnd a b         -> dnf a `bandOO` dnf b
-      where bandO :: Ord s => DnfAnd s -> DNF s -> DNF s
-            bandO a as = S.map (a<>) as
-
-            bandOO :: Ord s => DNF s -> DNF s -> DNF s
-            bandOO a b = foldMap (<>mempty) $ S.map (`bandO` a) b
+      BAnd a b         -> dnf a `andOrs` dnf b
+      where andOrs :: Ord s => DNF s -> DNF s -> DNF s
+            andOrs a = fold . S.map (flip S.map a . (<>))
 
 -- | Remove all terms with a constant "true" or "false" value.
 simpl :: (Ord s, Eq s, AtomicProp s) => DNF s -> DNF s
@@ -51,6 +49,7 @@ simpl = foldr simpl' mempty
             simpl' :: (Ord s, Eq s, AtomicProp s) => DnfAnd s -> DNF s -> DNF s
             simpl' _ as | as == dnfTrue = dnfTrue
             simpl' a as                 = case S.toList a' of
+                  []                             -> dnfTrue
                   [b] | atEval b == Just False   -> as
                   _                              -> S.singleton a' <> as
                   where a' = foldr simpl'' mempty a
