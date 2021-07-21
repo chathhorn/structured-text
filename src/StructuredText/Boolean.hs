@@ -51,8 +51,8 @@ simpl = foldr simpl' mempty
             simpl' :: (Ord s, Eq s, AtomicProp s) => DnfAnd s -> DNF s -> DNF s
             simpl' _ as | as == dnfTrue = dnfTrue
             simpl' a as                 = case S.toList a' of
-                  [a] | atEval a == Just False -> as
-                  _                            -> S.singleton a' <> as
+                  [b] | atEval b == Just False   -> as
+                  _                              -> S.singleton a' <> as
                   where a' = foldr simpl'' mempty a
 
             -- | ANDs.
@@ -60,7 +60,7 @@ simpl = foldr simpl' mempty
             simpl'' a _  | atEval a == Just False = S.singleton atFalse
             simpl'' a as | atEval a == Just True  = as
             simpl'' a as = case S.toList as of
-                  [a] | atEval a == Just False -> as
+                  [b] | atEval b == Just False -> as
                   _                            -> S.singleton a <> as
 
 injectDNF :: DNF s -> B s

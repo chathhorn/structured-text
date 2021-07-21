@@ -5,6 +5,7 @@ module StructuredText.LTL
       , NormLTL (..), normalize
       , AtomicProp (..)
       , atoms
+      , satisfies
       ) where
 
 import Data.Text ( Text, singleton )
@@ -261,7 +262,7 @@ data BasicTerm = BTVar Text
 instance Pretty BasicTerm where
       pretty = \ case
             BTVar x -> pretty x
-            BTTrue -> pretty ("true" :: Text)
+            BTTrue  -> pretty ("true" :: Text)
             BTFalse -> pretty ("false" :: Text)
             BTNot t -> pretty ("!" :: Text) <+> pretty t
 
@@ -286,4 +287,14 @@ ident = do
       xs <- takeWhileP (Just "legal LTL basic term identifier character") isAlphaNum
       space
       pure $ singleton x <> xs
+
+satisfies :: Ord a => [Set a] -> NormLTL a -> Bool
+satisfies []         = const False
+satisfies m@(w : m') = \ case
+      TermN a          -> S.member a w
+      AndN a b         -> satisfies m a && satisfies m b
+      OrN a b          -> satisfies m a || satisfies m b
+      p@(UntilN a b)   -> satisfies m b || (satisfies m a && satisfies m' p)
+      p@(ReleaseN a b) -> satisfies m b && (satisfies m a || satisfies m' p)
+      NextN a          -> satisfies m' a
 

@@ -2,6 +2,7 @@ module StructuredText.DFA
       ( DFA (..)
       , LDFA
       , toDFA
+      , accept, transition
       ) where
 
 import qualified Data.Set as S
@@ -9,6 +10,7 @@ import Data.Set (Set)
 import qualified Data.Map.Strict as M
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
+import Data.List (foldl')
 import Control.Arrow ((&&&), first)
 import StructuredText.LTL (AtomicProp (..))
 import StructuredText.ABA (ABA (..))
@@ -90,3 +92,12 @@ toDFA' aba = DFA
 
 toDFA :: (AtomicProp s, Ord s, Ord a) => ABA s a -> DFA a
 toDFA = toDFA' . toABA'
+
+transition :: Ord a => DFA a -> a -> DFA a
+transition dfa a = dfa { currDFA = M.findWithDefault 0 (currDFA dfa, a) (deltaDFA dfa) }
+
+-- | For finite [a].
+accept :: Ord a => DFA a -> [a] -> Bool
+accept dfa m = S.member (currDFA dfa') $ finalDFA dfa'
+      where dfa' = foldl' transition dfa m
+

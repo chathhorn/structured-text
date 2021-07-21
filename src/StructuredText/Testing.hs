@@ -20,12 +20,14 @@ import StructuredText.Boolean
       , satisfy
       )
 -- import StructuredText.Buchi (acceptNBA)
--- import StructuredText.ToABA (toABA)
-import StructuredText.LTL (AtomicProp (..))
+import StructuredText.ToABA (toABA)
+import StructuredText.LTL (NormLTL (..), AtomicProp (..), satisfies)
 -- import StructuredText.ToBuchi
 --        ( toBuchi
 -- --       --, ltlVardi, phi
 --        )
+
+import StructuredText.DFA (DFA (..), accept, transition, toDFA)
 
 --testing quickCheck
 
@@ -56,3 +58,12 @@ prop_simpl_sat formula set = satisfy (simplify formula) set == satisfy formula s
 --Vardi ABA and equivalent NBA accept the same strings
 --prop_Vardi :: (Eq a, Ord a, Ord s) => [a] -> Bool
 --prop_Vardi word = prop_aba_nba_equiv (toABA ltlVardi) word
+
+trans :: (Ord a, AtomicProp a) => NormLTL a -> DFA (Set a)
+trans = toDFA . toABA
+
+-- | Correctness for monitoring (though should define satisfies on LTL instead -- of NormLTL):
+--   For all finite m :: [Set a], p :: NormLTL, (satisfies m p) if and only if (accept (trans p) m)
+prop_trans_correct :: (Ord a, AtomicProp a) => NormLTL a -> [Set a] -> Bool
+prop_trans_correct p m = satisfies m p == accept (trans p) m
+
