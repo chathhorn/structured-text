@@ -10,7 +10,7 @@ import Control.Monad.State.Class (MonadState, gets, modify)
 import Control.Monad.Trans.State.Strict (evalStateT)
 import Control.Monad.Except (MonadError (..))
 import StructuredText.Syntax
-import StructuredText.LTL (AtomicProp (..), NormLTL (..))
+import StructuredText.LTL (atoms, AtomicProp (..), NormLTL (..))
 import qualified StructuredText.LTL as LTL
 import Text.Casing (quietSnake)
 import qualified Language.Python.Common.AST as Py
@@ -43,15 +43,19 @@ importDFA = Py.FromImport (Py.ImportRelative 0 (Just [Py.Ident "dfa" ()]) ()) (P
 
 transGlobal :: (MonadState Sto m, MonadError Err m) => Global -> m [Py.Statement ()]
 transGlobal = \ case
+      LTLStmt x ltl                      -> do
+            x' <- transId x
+            let ltl' = LTL.normalize ltl
+            vs <- mapM transId $ Set.toList (Set.unions (Set.map (Set.fromList . vars) (atoms ltl')))
+            ltl'' <- traverse transExpr ltl'
+            let dfa = toDFA (toABA ltl'')
+            let ds = map (\ x -> Py.Param x Nothing Nothing ()) vs
+            pure $ ltlGlob x' dfa 0 ++ [ltlFun x' ds dfa 0]
       FunctionBlock x ds body         -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
-      Function x ltls _ ds body       -> do
+      Function x _ ds body       -> do
             x' <- transId x
             ds' <- concat <$> mapM transParams ds
-            let ltls' = map LTL.normalize ltls
-            ltls'' <- mapM transLTLTerms ltls'
-            let dfas = zip (map (toDFA . toABA) ltls'') [0..]
-            ((concatMap (uncurry $ ltlGlob x') dfas
-                  ++ map (uncurry $ ltlFun x' ds') dfas) ++) . pure <$> (Py.Fun x' ds' Nothing <$> (putFId x *> mapM transStmt body) <*> pure ())
+            pure <$> (Py.Fun x' ds' Nothing <$> (putFId x *> mapM transStmt body) <*> pure ())
       Program x ds body               -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
       TypeDef {}                      -> throwError "transGlobal TypeDef: unimplemented"
       GlobalVars {}                   -> throwError "transGlobal GlobalVars: unimplemented"
@@ -146,7 +150,7 @@ pyVar' :: Text -> Py.Expr ()
 pyVar' x = pyVar (Py.Ident (unpack x) ())
 
 ltlFun :: Py.Ident () -> [Py.Parameter ()] -> LDFA (Py.Expr ()) -> Int -> Py.Statement ()
-ltlFun x ds dfa n = Py.Fun funId (ds ++ [Py.Param x Nothing Nothing ()]) Nothing
+ltlFun x ds dfa n = Py.Fun funId ds Nothing
                [ Py.Global [dfaId x n] ()
                , Py.Assign [d] (Py.Dictionary (map keyVal atoms') ()) ()
                , Py.Return (Just $ Py.Call (Py.Dot (pyVar $ dfaId x n) (Py.Ident "accept_dict" ()) ()) [Py.ArgExpr d ()] ()) ()
@@ -206,9 +210,6 @@ pyRange from to = Py.Call (pyVar' "range") [Py.ArgExpr from (), Py.ArgExpr to ()
 
 qq :: String -> String
 qq s = "\"" ++ s ++ "\""
-
-transLTLTerms :: MonadError Err m => NormLTL Expr -> m (NormLTL (Py.Expr ()))
-transLTLTerms = traverse transExpr
 
 transStmt :: (MonadState Sto m, MonadError Err m) => Stmt -> m (Py.Statement ())
 transStmt = \ case

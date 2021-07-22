@@ -31,9 +31,13 @@ global = try functionBlock
       <|> try program
       <|> try typeDef
       <|> try globalVars
+      <|> try ltlStmt
 
 ltl :: Parser (LTL.LTL Expr)
 ltl = symbol' "//" *> symbol' "LTL" *> symbol' ":" *> LTL.parseLtl expr
+
+ltlStmt :: Parser Global
+ltlStmt = LTLStmt "ltl" <$> ltl
 
 functionBlock :: Parser Global
 functionBlock = do
@@ -46,14 +50,13 @@ functionBlock = do
 
 function :: Parser Global
 function = do
-      annot <- many ltl
       skipSymbol' "FUNCTION"
       n <- ident
       t <- declType
       vs <- many functionVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION"
-      pure $ Function n annot t vs sts
+      pure $ Function n t vs sts
 
 program :: Parser Global
 program = do

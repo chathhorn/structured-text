@@ -5,6 +5,7 @@ module StructuredText.Syntax
       , LVal (..), Lit (..), Labeled (..)
       , TypedName (..), Qualifier (..)
       , Location (..), Init (..), FieldInit (..)
+      , vars
       ) where
 
 import Data.Text (Text)
@@ -18,7 +19,8 @@ instance Pretty STxt where
       pretty (STxt gs) = pretty gs
 
 data Global = FunctionBlock Text [VarDecl] [Stmt]
-            | Function Text [LTL.LTL Expr] Type [VarDecl] [Stmt]
+            | LTLStmt Text (LTL.LTL Expr)
+            | Function Text Type [VarDecl] [Stmt]
             | Program Text [VarDecl] [Stmt]
             | TypeDef Text
             | GlobalVars VarDecl
@@ -27,10 +29,11 @@ data Global = FunctionBlock Text [VarDecl] [Stmt]
 instance Pretty Global where
       pretty = \ case
             FunctionBlock f _ _   -> pretty ("FUNCTION_BLOCK" :: Text) <+> pretty f
-            Function f _ _ _ _    -> pretty ("FUNCTION" :: Text) <+> pretty f
+            Function f _ _ _      -> pretty ("FUNCTION" :: Text) <+> pretty f
             Program f _ _         -> pretty ("PROGRAM" :: Text) <+> pretty f
             TypeDef f             -> pretty ("TYPE" :: Text) <+> pretty f
             GlobalVars _          -> pretty ("VAR_GLOBAL" :: Text)
+            LTLStmt _ _           -> pretty ("// LTL: ..." :: Text)
 
 data FieldInit = FieldInit Text Init
       deriving (Eq, Show)
@@ -61,14 +64,14 @@ data Arg = Arg Expr
          | ArgIn Text Expr
          | ArgOut Text Text
          | ArgOutNeg Text Text
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 data Elsif = Elsif Expr [Stmt]
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 data Labeled = Label Expr [Stmt]
              | LabelRange Expr Expr [Stmt]
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 data Stmt = Assign LVal Expr
           | Invoke Text [Arg]
@@ -81,16 +84,16 @@ data Stmt = Assign LVal Expr
           | Exit
           | Empty
           | LTL (LTL.LTL Expr)
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 data Op = Plus | Minus | Mult | Div | Mod | Exp
         | Lt | Gt | Lte | Gte | Eq | Neq | And | Xor | Or
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 data LVal = Id Text
           | QualId Text Text
           | Index Text Expr
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 data Lit = Bool Bool
          | Int Int
@@ -98,7 +101,7 @@ data Lit = Bool Bool
          | Duration Int Int Int Int Int -- days, hours, mins, secs, msecs
          | String Text
          | WString Text
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 data Expr = LV LVal
           | BinOp Op Expr Expr
@@ -108,7 +111,17 @@ data Expr = LV LVal
           | Call Text [Arg]
           | Lit Lit
           | Paren Expr
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
+
+vars :: Expr -> [Text]
+vars = \ case
+      LV (Id x) -> [x]
+      BinOp _ a b -> vars a ++ vars b
+      Negate a -> vars a
+      Not a -> vars a
+      AddrOf a -> vars a
+      Paren a -> vars a
+      _  -> []
 
 instance LTL.AtomicProp Expr where
       atTrue = Lit (Bool True)

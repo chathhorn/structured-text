@@ -64,12 +64,15 @@ opTable =
         ]
       , [ binop "/\\" And
         , binop "∧"   And
+        , binop "&&"   And
         ]
       , [ binop "\\/" Or
         , binop "∨"   Or
+        , binop "||"   Or
         ]
       , [ binop "->"  Implies
         , binop "→"   Implies
+        , binop "⇒"   Implies -- anything goes with us
         ]
       ]
 
@@ -101,7 +104,7 @@ data LTL a = Term a
            | Until (LTL a) (LTL a)
            | Release (LTL a) (LTL a)
            | Next (LTL a)
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 parenify :: Pretty a => a -> Doc ann
 parenify a = pretty ("(" :: Text) <+> pretty a <+> pretty (")" :: Text)
