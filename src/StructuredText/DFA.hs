@@ -15,7 +15,7 @@ import Control.Arrow ((&&&), (***), first)
 import Control.Monad (join)
 import StructuredText.LTL (AtomicProp (..))
 import StructuredText.ABA (ABA (..))
-import StructuredText.Boolean (dnfFalse, satisfies)
+import StructuredText.Boolean (dnfFalse, dnfTrue, satisfies)
 
 -- import Debug.Trace (trace)
 trace :: String -> a -> a
@@ -37,7 +37,7 @@ toDFA aba = DFA
       { statesDFA = S.size allStates
       , alphaDFA  = alphaABA aba
       , currDFA   = toTag $ currABA aba
-      , finalDFA  = S.map toTag $ S.filter (finalABA aba `satisfies`) allStates
+      , finalDFA  = S.singleton $ toTag $ dnfTrue
       , deltaDFA  = M.fromAscList $ map (first toTag *** toTag) $ M.toAscList mapify
       }
       where -- mapify :: (B s -> a -> B s) -> Map (B s, a) (B s)

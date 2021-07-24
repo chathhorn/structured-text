@@ -316,7 +316,7 @@ opTable =
         ]
       , [ binop "<="  $ BinOp Lte
         , binop ">="  $ BinOp Gte
-        , binop' "<"   $ BinOp Lt
+        , binop' "<"  $ BinOp Lt
         , binop ">"   $ BinOp Gt
         ]
       , [ binop "="   $ BinOp Eq
@@ -358,7 +358,7 @@ typ = try ( (symbol' "BOOL"  *> symbol' "R_EDGE") $> TBoolREdge )
   <|> try ( notIdent' "TIME"   $> TTime  ) <|> try ( notIdent' "DATE"  $> TDate  )
   <|> try ( notIdent' "STRING" $> TTime  ) <|> try ( notIdent' "WSTRING"  $> TDate  )
   <|> try ( ( notIdent' "TIME_OF_DAY"      <|>   notIdent' "TOD")  $> TTimeOfDay )
-  <|> try ( ( notIdent' "DATE_AND_TYPE"    <|>   notIdent' "DT" )  $> TDateTime  )
+  <|> try ( ( notIdent' "DATE_AND_TIME"    <|>   notIdent' "DT" )  $> TDateTime  )
   <|> ( TId <$> ident )
 
 -----------
