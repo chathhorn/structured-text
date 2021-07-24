@@ -5,7 +5,7 @@ module StructuredText.Syntax
       , LVal (..), Lit (..), Labeled (..)
       , TypedName (..), Qualifier (..)
       , Location (..), Init (..), FieldInit (..)
-      , vars
+      , vars, ltls
       ) where
 
 import Data.Text (Text)
@@ -20,14 +20,32 @@ import qualified StructuredText.LTL as LTL
 ($$) :: Doc ann -> Doc ann -> Doc ann
 a $$ b = vsep [a, b]
 
+ppBlock :: [Doc ann] -> Doc ann
+ppBlock = nest 2 . vsep
+
+pps :: Pretty a => [a] -> Doc ann
+pps = vsep . map pretty
+
 pp :: Text -> Doc ann
 pp = pretty
 
 newtype STxt = STxt [Global]
       deriving (Eq, Show)
 
+instance Semigroup STxt where
+      STxt gs <> STxt gs' = STxt $ gs <> gs'
+instance Monoid STxt where
+      mempty = STxt []
+
 instance Pretty STxt where
-      pretty (STxt gs) = pretty gs
+      pretty (STxt gs) = vcat $ map pretty gs
+
+ltls :: STxt -> [(Text, LTL.LTL Expr)]
+ltls (STxt gs) = foldr ltls' [] gs
+      where ltls' :: Global -> [(Text, LTL.LTL Expr)] -> [(Text, LTL.LTL Expr)]
+            ltls' = \ case
+                  LTLStmt x ltl -> ((x, ltl):)
+                  _             -> id
 
 data Global = FunctionBlock Text [VarDecl] [Stmt]
             | LTLStmt Text (LTL.LTL Expr)
@@ -39,21 +57,27 @@ data Global = FunctionBlock Text [VarDecl] [Stmt]
 
 instance Pretty Global where
       pretty = \ case
-            FunctionBlock f vs ss -> pp "FUNCTION_BLOCK" <+> pretty f
-                                          $$ nest 2 (vcat $ map pretty vs)
-                                          $$ nest 2 (vcat $ map pretty ss)
-                                          $$ pp "END_FUNCTION_BLOCK"
-            Function f t vs ss    -> pp "FUNCTION" <+> pretty f <+> colon <+> pretty t
-                                          $$ nest 2 (vcat $ map pretty vs)
-                                          $$ nest 2 (vcat $ map pretty ss)
-                                          $$ pp "END_FUNCTION"
-            Program f vs ss       -> pp "PROGRAM" <+> pretty f
-                                          $$ nest 2 (vcat $ map pretty vs)
-                                          $$ nest 2 (vcat $ map pretty ss)
-                                          $$ pp "END_PROGRAM"
-            TypeDef f             -> pp "TYPE" <+> pretty f
+            FunctionBlock f vs ss -> ppBlock
+                  [ pp "FUNCTION_BLOCK" <+> pretty f
+                  , pps vs
+                  , pps ss
+                  ] $$ pp "END_FUNCTION_BLOCK"
+            Function f t vs ss    -> ppBlock
+                  [ pp "FUNCTION" <+> pretty f <+> colon <+> pretty t
+                  , pps vs
+                  , pps ss
+                  ] $$ pp "END_FUNCTION"
+            Program f vs ss       -> ppBlock
+                  [ pp "PROGRAM" <+> pretty f
+                  , pps vs
+                  , pps ss
+                  ] $$ pp "END_PROGRAM"
+            TypeDef f             -> ppBlock
+                  [ pp "TYPE"
+                  , pretty f
+                  ] $$ pp "END_TYPE"
             GlobalVars v          -> pretty v
-            LTLStmt x e           -> pp "LTL" <+> pretty x <+> colon <+> pretty e
+            LTLStmt x e           -> pp "// LTL" <+> pretty x <+> colon <+> pretty e
 
 data FieldInit = FieldInit Text Init
       deriving (Eq, Show)
@@ -89,9 +113,9 @@ data Location = InputLoc Text | OutputLoc Text | MemoryLoc Text
 
 instance Pretty Location where
       pretty = \ case
-            InputLoc a  -> pp "%I" <+> pretty a
-            OutputLoc a -> pp "%Q" <+> pretty a
-            MemoryLoc a -> pp "%M" <+> pretty a
+            InputLoc a  -> pp "%I" <> pretty a
+            OutputLoc a -> pp "%Q" <> pretty a
+            MemoryLoc a -> pp "%M" <> pretty a
 
 data Qualifier = None | Retain | NonRetain | Constant
       deriving (Eq, Show)
@@ -123,7 +147,10 @@ instance Pretty VarDecl where
             VarAccess q ts   -> ppVar "VAR_ACCESS" q ts
 
             where ppVar :: Text -> Qualifier -> [TypedName] -> Doc ann
-                  ppVar x q ts = pretty x <+> pretty q $$ nest 2 (vcat $ map pretty ts) $$ pp "END_VAR"
+                  ppVar x q ts = ppBlock
+                        [ pretty x <+> pretty q
+                        , pps ts
+                        ] $$ pp "END_VAR"
 
 data Arg = Arg Expr
          | ArgIn Text Expr
@@ -142,7 +169,10 @@ data Elsif = Elsif Expr [Stmt]
       deriving (Eq, Ord, Show)
 
 instance Pretty Elsif where
-      pretty (Elsif e ss) = pp "ELSIF" <+> pretty e <+> pp "THEN" $$ nest 2 (vcat $ map pretty ss)
+      pretty (Elsif e ss) = ppBlock
+            [ pp "ELSIF" <+> pretty e <+> pp "THEN"
+            , pps ss
+            ] 
 
 data Labeled = Label Expr [Stmt]
              | LabelRange Expr Expr [Stmt]
@@ -150,8 +180,8 @@ data Labeled = Label Expr [Stmt]
 
 instance Pretty Labeled where
       pretty = \ case
-            Label e ss        -> pretty e <+> colon $$ nest 2 (vcat $ map pretty ss)
-            LabelRange a b ss -> pretty a <+> pp ".." <+> pretty b <+> colon $$ nest 2 (vcat $ map pretty ss)
+            Label e ss        -> ppBlock [pretty e <+> colon, pps ss]
+            LabelRange a b ss -> ppBlock [pretty a <+> pp ".." <+> pretty b <+> colon, pps ss]
 
 data Stmt = Assign LVal Expr
           | Invoke Text [Arg]
@@ -163,48 +193,55 @@ data Stmt = Assign LVal Expr
           | Repeat [Stmt] Expr
           | Exit
           | Empty
-          | LTL (LTL.LTL Expr)
       deriving (Eq, Ord, Show)
 
 instance Pretty Stmt where
       pretty = \ case
             Assign a b          -> pretty a <+> pp ":=" <+> pretty b <> semi
             Invoke f as         -> pretty f <> tupled (map pretty as) <> semi
-            If e ss els [] -> pp "IF" <+> pretty e <+> pp "THEN"
-                  $$ nest 2 (vcat $ map pretty ss)
-                  $$ vcat (map pretty els)
-                  $$ pp "END_IF" <> semi
-            If e ss els ss'     -> pp "IF" <+> pretty e <+> pp "THEN"
-                  $$ nest 2 (vcat $ map pretty ss)
-                  $$ vcat (map pretty els)
-                  $$ pp "ELSE"
-                  $$ nest 2 (vcat $ map pretty ss')
-                  $$ pp "END_IF" <> semi
-            Case e lbls []      -> pp "CASE" <+> pretty e <+> pp "OF"
-                  $$ nest 2 (vcat $ map pretty lbls) 
-                  $$ pp "END_CASE" <> semi
-            Case e lbls ss   -> pp "CASE" <+> pretty e <+> pp "OF"
-                  $$ nest 2 (vcat $ map pretty lbls) 
-                  $$ pp "ELSE"
-                  $$ nest 2 (vcat $ map pretty ss)
-                  $$ pp "END_CASE" <> semi
-            For x a b Nothing ss      -> pp "FOR" <+> pretty x <+> pp ":=" <+> pretty a <+> pp "TO" <+> pretty b <+> pp "DO"
-                  $$ nest 2 (vcat $ map pretty ss)
-                  $$ pp "END_FOR" <> semi
-            For x a b (Just c) ss      -> pp "FOR" <+> pretty x <+> pp ":=" <+> pretty a <+> pp "TO" <+> pretty b <+> pp "BY" <+> pretty c <+> pp "DO"
-                  $$ nest 2 (vcat $ map pretty ss)
-                  $$ pp "END_FOR" <> semi
-            While e ss          -> pp "WHILE" <+> pretty e <+> pp "DO"
-                  $$ nest 2 (vcat $ map pretty ss)
-                  $$ pp "END_WHILE" <> semi
-            Repeat ss e         -> pp "REPEAT"
-                  $$ nest 2 (vcat $ map pretty ss)
-                  $$ pp "UNTIL" <+> pretty e
-                  $$ pp "END_REPEAT" <> semi
+            If e ss els []      -> ppBlock
+                  [ pp "IF" <+> pretty e <+> pp "THEN"
+                  , pps ss
+                  , pps els
+                  ] $$ pp "END_IF" <> semi
+            If e ss els ss'     -> ppBlock
+                  [ pp "IF" <+> pretty e <+> pp "THEN"
+                  , pps ss
+                  , pps els
+                  ] $$ ppBlock
+                  [ pp "ELSE"
+                  , pps ss'
+                  ] $$ pp "END_IF" <> semi
+            Case e lbls []      -> ppBlock
+                  [ pp "CASE" <+> pretty e <+> pp "OF"
+                  , pps lbls 
+                  ] $$ pp "END_CASE" <> semi
+            Case e lbls ss   -> ppBlock
+                  [ pp "CASE" <+> pretty e <+> pp "OF"
+                  , pps lbls 
+                  ] $$ ppBlock
+                  [ pp "ELSE"
+                  , pps ss
+                  ] $$ pp "END_CASE" <> semi
+            For x a b Nothing ss      -> ppBlock
+                  [ pp "FOR" <+> pretty x <+> pp ":=" <+> pretty a <+> pp "TO" <+> pretty b <+> pp "DO"
+                  , pps ss
+                  ] $$ pp "END_FOR" <> semi
+            For x a b (Just c) ss      -> ppBlock
+                  [ pp "FOR" <+> pretty x <+> pp ":=" <+> pretty a <+> pp "TO" <+> pretty b <+> pp "BY" <+> pretty c <+> pp "DO"
+                  , pps ss
+                  ] $$ pp "END_FOR" <> semi
+            While e ss          -> ppBlock
+                  [ pp "WHILE" <+> pretty e <+> pp "DO"
+                  , pps ss
+                  ] $$ pp "END_WHILE" <> semi
+            Repeat ss e         -> ppBlock
+                  [ pp "REPEAT"
+                  , pps ss
+                  ] $$ pp "UNTIL" <+> pretty e $$ pp "END_REPEAT" <> semi
             Return              -> pp "RETURN" <> semi
             Exit                -> pp "EXIT" <> semi
             Empty               -> semi
-            LTL p               -> pp "// LTL:" <+> pretty p
 
 data Op = Plus | Minus | Mult | Div | Mod | Exp
         | Lt | Gt | Lte | Gte | Eq | Neq | And | Xor | Or

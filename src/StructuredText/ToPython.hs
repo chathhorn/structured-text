@@ -229,7 +229,6 @@ transStmt = \ case
             c' <- transExpr c
             body' <- mapM transStmt body
             pure $ Py.While (Py.Bool True ()) (body' ++ [Py.Conditional [(c', [Py.Break ()])] [] ()]) [] ()
-      LTL ltl                  -> pure $ Py.StmtExpr (Py.Strings ["# " , show ltl] ()) ()
       Exit                     -> pure $ Py.Return Nothing () -- TODO: how would it be different from return?
       Empty                    -> pure $ Py.Pass ()
 

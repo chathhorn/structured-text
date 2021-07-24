@@ -1,7 +1,10 @@
 module StructuredText.ToSTxt ( toSTxt ) where
 
+import StructuredText.Syntax (STxt)
 import qualified StructuredText.Syntax as ST
 import StructuredText.DFA (DFA (..))
+import Data.Text (Text)
 
-toSTxt :: DFA a -> ST.Global
+-- | First argument: name.
+toSTxt :: Text -> DFA a -> STxt
 toSTxt = undefined
