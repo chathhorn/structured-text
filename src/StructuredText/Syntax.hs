@@ -5,7 +5,7 @@ module StructuredText.Syntax
       , LVal (..), Lit (..), Labeled (..)
       , TypedName (..), Qualifier (..)
       , Location (..), Init (..), FieldInit (..)
-      , vars, ltls
+      , vars, ltls, gvars
       ) where
 
 import Data.Text (Text)
@@ -15,7 +15,7 @@ import Prettyprinter
       , dot, lparen, rparen, tupled, lbracket, rbracket, semi
       , nest, vcat, colon, emptyDoc
       )
-import qualified StructuredText.LTL as LTL
+import StructuredText.LTL (LTL, AtomicProp (..))
 
 ($$) :: Doc ann -> Doc ann -> Doc ann
 a $$ b = vsep [a, b]
@@ -40,15 +40,21 @@ instance Monoid STxt where
 instance Pretty STxt where
       pretty (STxt gs) = vcat $ map pretty gs
 
-ltls :: STxt -> [(Text, LTL.LTL Expr)]
+ltls :: STxt -> [(Text, LTL Expr)]
 ltls (STxt gs) = foldr ltls' [] gs
-      where ltls' :: Global -> [(Text, LTL.LTL Expr)] -> [(Text, LTL.LTL Expr)]
+      where ltls' :: Global -> [(Text, LTL Expr)] -> [(Text, LTL Expr)]
             ltls' = \ case
                   LTLStmt x ltl -> ((x, ltl):)
                   _             -> id
 
+gvars :: STxt -> [TypedName]
+gvars (STxt gs) = concatMap gvars' gs
+      where gvars' = \ case
+                  GlobalVars vs -> typedNames vs
+                  _             -> []
+
 data Global = FunctionBlock Text [VarDecl] [Stmt]
-            | LTLStmt Text (LTL.LTL Expr)
+            | LTLStmt Text (LTL Expr)
             | Function Text Type [VarDecl] [Stmt]
             | Program Text [VarDecl] [Stmt]
             | TypeDef Text
@@ -135,6 +141,16 @@ data VarDecl = Var         Qualifier [TypedName]
              | VarGlobal   Qualifier [TypedName]
              | VarAccess   Qualifier [TypedName]
       deriving (Eq, Show)
+
+typedNames :: VarDecl -> [TypedName]
+typedNames = \ case
+      Var _ ts         -> ts
+      VarInput _ ts    -> ts
+      VarOutput _ ts   -> ts
+      VarInOut _ ts    -> ts
+      VarExternal _ ts -> ts
+      VarGlobal _ ts   -> ts
+      VarAccess _ ts   -> ts
 
 instance Pretty VarDecl where
       pretty = \ case
@@ -322,17 +338,47 @@ instance Pretty Expr where
 
 vars :: Expr -> [Text]
 vars = \ case
-      LV (Id x) -> [x]
-      BinOp _ a b -> vars a ++ vars b
-      Negate a -> vars a
-      Not a -> vars a
-      AddrOf a -> vars a
-      Paren a -> vars a
-      _  -> []
+      LV (Id x)       -> [x]
+      LV (QualId x _) -> [x]
+      LV (Index x b)  -> [x]    <> vars b
+      BinOp _ a b     -> vars a <> vars b
+      Negate a        -> vars a
+      Not a           -> vars a
+      AddrOf a        -> vars a
+      Paren a         -> vars a
+      _               -> []
 
-instance LTL.AtomicProp Expr where
+instance AtomicProp Expr where
       atTrue = Lit (Bool True)
       atNot = Not . Paren
+      atEval = \ case
+            Lit (Bool b)  -> Just b
+            Paren a       -> atEval a
+            Not a         -> case atEval a of
+                  Just b -> Just $ not b
+                  _      -> Nothing
+            BinOp And a b -> case (atEval a, atEval b) of
+                  (Just True, a')         -> a'
+                  (Just False, _)         -> Just False
+                  (_, Just False)         -> Just False
+                  _                       -> Nothing
+            BinOp Or a b -> case (atEval a, atEval b) of
+                  (Just False, a')        -> a'
+                  (Just True, _)          -> Just True
+                  (_, Just True)          -> Just True
+                  _                       -> Nothing
+            BinOp Xor a b -> case (atEval a, atEval b) of
+                  (Just True, Just False) -> Just True
+                  (Just False, Just True) -> Just True
+                  (Just _, Just _)        -> Just False
+                  _                       -> Nothing
+            BinOp Eq a b -> case (atEval a, atEval b) of
+                  (Just x, Just y)        -> Just (x == y)
+                  _                       -> Nothing
+            BinOp Neq a b -> case (atEval a, atEval b) of
+                  (Just x, Just y)        -> Just (x /= y)
+                  _                       -> Nothing
+            _             -> Nothing
 
 data Type = TBool   | TBoolREdge | TBoolFEdge
           | TId Text

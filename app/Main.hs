@@ -12,7 +12,7 @@ import System.Exit (exitFailure, exitSuccess)
 import System.FilePath ((-<.>))
 import Text.Megaparsec (parse, errorBundlePretty)
 
-import StructuredText.Syntax (STxt, ltls)
+import StructuredText.Syntax (STxt, ltls, gvars)
 import StructuredText.Parser (top)
 import StructuredText.ToPython (toPython)
 import StructuredText.ToABA (toABA)
@@ -131,7 +131,7 @@ main = do
             verbose $ pack f <> ": translating."
 
             verbose $ pack f <> ": generating STxt DFAs."
-            let dfas = mconcat $ map (uncurry toSTxt . (second $ toDFA . toABA . normalize)) $ ltls st
+            let dfas = mconcat $ map (uncurry (toSTxt $ gvars st) . (second $ toDFA . toABA . normalize)) $ ltls st
             fout <- getOutfile flags f
             verbose $ "Writing STxt DFAs to " <> pack fout <> "."
             T.writeFile fout $ prettyPrint dfas
