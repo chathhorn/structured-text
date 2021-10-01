@@ -49,7 +49,7 @@ transGlobal = \ case
             vs <- mapM transId $ Set.toList (Set.unions (Set.map (Set.fromList . vars) (atoms ltl')))
             ltl'' <- traverse transExpr ltl'
             let dfa = toDFA (toABA ltl'')
-            let ds = map (\ x -> Py.Param x Nothing Nothing ()) vs
+            let ds = map (\ n -> Py.Param n Nothing Nothing ()) vs
             pure $ ltlGlob x' dfa 0 ++ [ltlFun x' ds dfa 0]
       FunctionBlock x ds body         -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
       Function x _ ds body       -> do

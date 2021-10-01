@@ -295,13 +295,17 @@ ident = do
       space
       pure $ singleton x <> xs
 
-satisfies :: Ord a => [Set a] -> NormLTL a -> Bool
-satisfies []         = const False
+satisfies :: (AtomicProp a, Ord a) => [Set a] -> NormLTL a -> Bool
+satisfies []         = \ case
+      TermN a | atEval a == Just False -> False
+      _                                -> True
 satisfies m@(w : m') = \ case
-      TermN a          -> S.member a w
-      AndN a b         -> satisfies m a && satisfies m b
-      OrN a b          -> satisfies m a || satisfies m b
-      p@(UntilN a b)   -> satisfies m b || (satisfies m a && satisfies m' p)
-      p@(ReleaseN a b) -> satisfies m b && (satisfies m a || satisfies m' p)
-      NextN a          -> satisfies m' a
+      TermN a | atEval a == Just True  -> True
+      TermN a | atEval a == Just False -> False
+      TermN a                          -> S.member a w
+      AndN a b                         -> satisfies m a && satisfies m b
+      OrN a b                          -> satisfies m a || satisfies m b
+      p@(UntilN a b)                   -> satisfies m b || (satisfies m a && satisfies m' p)
+      p@(ReleaseN a b)                 -> satisfies m b && (satisfies m a || satisfies m' p)
+      NextN a                          -> satisfies m' a
 

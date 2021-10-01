@@ -3,6 +3,7 @@ module StructuredText.DFA
       , LDFA
       , toDFA
       , accept, transition
+      , monitors
       ) where
 
 import qualified Data.Set as S
@@ -37,7 +38,7 @@ toDFA aba = DFA
       { statesDFA = S.size allStates
       , alphaDFA  = alphaABA aba
       , currDFA   = toTag $ currABA aba
-      , finalDFA  = S.singleton $ toTag $ dnfTrue
+      , finalDFA  = S.map toTag $ S.filter (finalABA aba `satisfies`) allStates
       , deltaDFA  = M.fromAscList $ map (first toTag *** toTag) $ M.toAscList mapify
       }
       where -- mapify :: (B s -> a -> B s) -> Map (B s, a) (B s)
@@ -47,7 +48,7 @@ toDFA aba = DFA
             allCases = S.cartesianProduct allStates (alphaABA aba)
 
             -- allStates :: Set (B s)
-            allStates = S.singleton dnfFalse `S.union` iter2 deltaP (S.singleton $ currABA aba) (alphaABA aba)
+            allStates = S.fromList [dnfTrue, dnfFalse] `S.union` iter2 deltaP (S.singleton $ currABA aba) (alphaABA aba)
 
             -- | s U (map f (s x bs)) U (map f (map f (s x bs))) U ... until fixed point reached.
             iter2 :: Ord a => (a -> b -> a) -> Set a -> Set b -> Set a
@@ -72,5 +73,10 @@ transition dfa a = dfa { currDFA = M.findWithDefault 0 (currDFA dfa, a) (deltaDF
 -- | For finite [a].
 accept :: Ord a => DFA a -> [a] -> Bool
 accept dfa m = S.member (currDFA dfa') $ finalDFA dfa'
+      where dfa' = foldl' transition dfa m
+
+-- | Returns false iff DFA ends in bottom.
+monitors :: Ord a => DFA a -> [a] -> Bool
+monitors dfa m = currDFA dfa' /= 0
       where dfa' = foldl' transition dfa m
 

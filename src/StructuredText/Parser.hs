@@ -33,17 +33,17 @@ global = try functionBlock
       <|> try globalVars
       <|> try ltlStmt
 
-ltl :: Parser (LTL.LTL Expr)
-ltl = symbol' "//" *> symbol' "LTL" *> symbol' ":" *> LTL.parseLtl expr
+ltlPrefix :: Parser Text
+ltlPrefix = symbol' "LTL" *> ident <* symbol' ":"
 
 ltlStmt :: Parser Global
-ltlStmt = LTLStmt "ltl" <$> ltl
+ltlStmt = LTLStmt <$> (symbol' "//" *> ltlPrefix) <*> LTL.parseLtl expr
 
 functionBlock :: Parser Global
 functionBlock = do
       skipSymbol' "FUNCTION_BLOCK"
-      n <- ident
-      vs <- many functionBlockVarDecl
+      n   <- ident
+      vs  <- many functionBlockVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION_BLOCK"
       pure $ FunctionBlock n vs sts
@@ -367,7 +367,7 @@ typ = try ( (symbol' "BOOL"  *> symbol' "R_EDGE") $> TBoolREdge )
 
 -- TODO(chathhorn): move LTL out of comments.
 skipLineComment :: Parser ()
-skipLineComment =  try (symbol "//" *> notFollowedBy (symbol' "LTL" *> symbol ":")) *> void (takeWhileP (Just "character") (/= '\n'))
+skipLineComment =  try (symbol "//" *> notFollowedBy ltlPrefix) *> void (takeWhileP (Just "character") (/= '\n'))
 
 skipBlockComment :: Parser ()
 skipBlockComment = try (L.skipBlockComment "(*" "*)") <|> try (L.skipBlockComment "/*" "*/")

@@ -2,7 +2,6 @@ module StructuredText.ToSTxt ( toSTxt ) where
 
 import Data.Set (Set)
 import qualified Data.Set as S
-import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import StructuredText.Syntax (STxt (..))
 import qualified StructuredText.Syntax as ST

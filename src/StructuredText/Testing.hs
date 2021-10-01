@@ -7,6 +7,7 @@ module StructuredText.Testing
       -- , prop_aba_nba_equiv
       -- , prop_Vardi
       , prop_trans_correct
+      , sequences
       , cantoraba
       ) where
 
@@ -20,8 +21,6 @@ import StructuredText.ToABA (toABA)
 import StructuredText.LTL (NormLTL (..), AtomicProp (..), satisfies)
 
 import StructuredText.DFA (DFA (..), accept, toDFA)
-
---testing quickCheck
 
 -- prop_RevRev :: (Eq a) => [a] -> Bool
 -- prop_RevRev xs = reverse (reverse xs) == xs
@@ -58,6 +57,16 @@ trans = toDFA . toABA
 --   For all finite m :: [Set a], p :: NormLTL, (satisfies m p) if and only if (accept (trans p) m)
 prop_trans_correct :: (Ord a, AtomicProp a) => NormLTL a -> [Set a] -> Bool
 prop_trans_correct p m = satisfies m p == accept (trans p) m
+
+sequences :: Ord a => DFA a -> [[a]]
+sequences dfa = S.toList $ sequences' (statesDFA dfa) $ alphaDFA dfa
+
+-- | length, alphabet, 
+sequences' :: Ord a => Int -> Set a -> Set [a]
+sequences' 0 _    = S.singleton []
+sequences' n alph = s0 `S.union` S.map p2app (S.cartesianProduct s0 alph)
+      where s0           = sequences' (n - 1) alph 
+            p2app (a, b) = a ++ [b]
 
 cantoraba :: NBA String Integer
 cantoraba = NBA {statesNBA = S.fromList ["state 0", "state 1"] , initsNBA = S.fromList ["state 0"] , finalNBA = S.fromList["state 0"] , deltaNBA = tranFunc}

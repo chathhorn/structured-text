@@ -1,15 +1,14 @@
-// LTL: [] ( {not is_breaker_open and meter_va > thresh} -> () {threshold})
-FUNCTION THRESHOLD : BOOL
-      VAR_INPUT
-            meter_va : INT;
-            is_breaker_open : BOOL;
-            thresh : INT;
-      END_VAR
+VAR_GLOBAL
+      meter_va     : INT;
+      breaker_open : BOOL;
+      threshold    : INT;
+END_VAR
 
-      IF not is_breaker_open and meter_va > thresh THEN
-            THRESHOLD := TRUE;
+// LTL thresh: [] ( {breaker_open OR meter_va > threshold} -> () {breaker_open})
+PROGRAM
+      IF breaker_open OR meter_va > threshold THEN
+            breaker_open := TRUE;
       ELSE
-            THRESHOLD := FALSE;
+            breaker_open := FALSE;
       END_IF;
-END_FUNCTION
-
+END_PROGRAM
