@@ -4,18 +4,21 @@ module StructuredText.LTL
       , BasicTerm (..), basicTerm
       , NormLTL (..), normalize
       , AtomicProp (..)
-      , depth, atoms
+      , atoms
+      , satisfies
       ) where
 
 import Data.Text ( Text, singleton )
 import Data.Char ( isAlpha, isAlphaNum )
 import Data.Void ( Void )
+import Data.Set  ( Set )
 import Text.Megaparsec ( Parsec, (<?>), (<|>), between, empty, takeWhileP, try, satisfy )
 
 import Control.Monad.Combinators.Expr ( makeExprParser, Operator (..) )
 
 import qualified Text.Megaparsec.Char as C
 import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Data.Set as S
 
 import Prettyprinter ((<+>), Pretty (..), Doc)
 
@@ -24,8 +27,17 @@ type Parser = Parsec Void Text
 class AtomicProp a where
       atTrue :: a
       atNot :: a -> a
+
+      atEval :: a -> Maybe Bool
+      atEval _ = Nothing
+
       atFalse :: a
       atFalse = atNot atTrue
+
+instance (AtomicProp a, AtomicProp b) => AtomicProp (a, b) where
+      atTrue         = (atTrue, atTrue)
+      atNot (a, b)   = (atNot a, atNot b)
+      atEval (a, b)  = (&&) <$> atEval a <*> atEval b
 
 parseLtl :: Parser a -> Parser (LTL a)
 parseLtl term = makeExprParser term' opTable
@@ -38,22 +50,29 @@ opTable =
         , prefix "¬"  Not
         , prefix "[]" Always
         , prefix "□"  Always
+        , prefix "G"  Always
         , prefix "<>" Eventually
         , prefix "◇"  Eventually
+        , prefix "F"  Eventually
         , prefix "()" Next
         , prefix "◯"  Next
         ]
-      , [ binop "U" $ Until
-        , binop "⋃" $ Until
+      , [ binop "U"   Until
+        , binop "⋃"   Until
         ]
-      , [ binop "/\\" $ And
-        , binop "∧"   $ And
+      , [ binop "R"   Release
         ]
-      , [ binop "\\/" $ Or
-        , binop "∨"   $ Or
+      , [ binop "/\\" And
+        , binop "∧"   And
+        , binop "&&"   And
         ]
-      , [ binop "->"  $ Implies
-        , binop "→"   $ Implies
+      , [ binop "\\/" Or
+        , binop "∨"   Or
+        , binop "||"   Or
+        ]
+      , [ binop "->"  Implies
+        , binop "→"   Implies
+        , binop "⇒"   Implies -- anything goes with us
         ]
       ]
 
@@ -85,7 +104,7 @@ data LTL a = Term a
            | Until (LTL a) (LTL a)
            | Release (LTL a) (LTL a)
            | Next (LTL a)
-      deriving (Eq, Show)
+      deriving (Eq, Ord, Show)
 
 parenify :: Pretty a => a -> Doc ann
 parenify a = pretty ("(" :: Text) <+> pretty a <+> pretty (")" :: Text)
@@ -115,31 +134,91 @@ data NormLTL a = TermN a
                | UntilN (NormLTL a) (NormLTL a)
                | ReleaseN (NormLTL a) (NormLTL a)
                | NextN (NormLTL a)
-               | NegN (NormLTL a)
-      deriving (Eq, Show)
+      deriving (Eq, Show, Ord)
+
+instance Functor NormLTL where
+      fmap f = \ case
+            TermN a        -> TermN $ f a
+            AndN e1 e2     -> AndN (fmap f e1) (fmap f e2)
+            OrN e1 e2      -> OrN (fmap f e1) (fmap f e2)
+            UntilN e1 e2   -> UntilN (fmap f e1) (fmap f e2)
+            ReleaseN e1 e2 -> ReleaseN (fmap f e1) (fmap f e2)
+            NextN e        -> NextN (fmap f e)
+
+instance Foldable NormLTL where
+      foldMap f = \ case
+            TermN a        -> f a
+            AndN e1 e2     -> foldMap f e1 <> foldMap f e2
+            OrN e1 e2      -> foldMap f e1 <> foldMap f e2
+            UntilN e1 e2   -> foldMap f e1 <> foldMap f e2
+            ReleaseN e1 e2 -> foldMap f e1 <> foldMap f e2
+            NextN e        -> foldMap f e
+
+instance Traversable NormLTL where
+      traverse f = \ case
+            TermN a        -> TermN    <$> f a
+            AndN e1 e2     -> AndN     <$> traverse f e1 <*> traverse f e2
+            OrN e1 e2      -> OrN      <$> traverse f e1 <*> traverse f e2
+            UntilN e1 e2   -> UntilN   <$> traverse f e1 <*> traverse f e2
+            ReleaseN e1 e2 -> ReleaseN <$> traverse f e1 <*> traverse f e2
+            NextN e        -> NextN    <$> traverse f e
 
 instance Pretty a => Pretty (NormLTL a) where
       pretty = \ case
-            TermN a -> pretty a
-            AndN e1 e2 -> pBinOp "/\\" e1 e2
-            OrN e1 e2 -> pBinOp "\\/" e1 e2
-            UntilN e1 e2 -> pBinOp "U" e1 e2
+            TermN a        -> pretty a
+            AndN e1 e2     -> pBinOp "/\\" e1 e2
+            OrN e1 e2      -> pBinOp "\\/" e1 e2
+            UntilN e1 e2   -> pBinOp "U" e1 e2
             ReleaseN e1 e2 -> pBinOp "R" e1 e2
-            NextN e1 -> pUnOp "X" e1
+            NextN e        -> pUnOp "X" e
 
-atoms :: NormLTL a -> [(a, Int)]
-atoms = atoms' 0
-      where atoms' :: Int -> NormLTL a -> [(a, Int)]
-            atoms' n = \ case
-                  TermN a        -> [(a, n)]
-                  AndN e1 e2     -> atoms' n e1 ++ atoms' n e2
-                  OrN e1 e2      -> atoms' n e1 ++ atoms' n e2
-                  UntilN e1 e2   -> atoms' n e1 ++ atoms' n e2
-                  ReleaseN e1 e2 -> atoms' n e1 ++ atoms' n e2
-                  NextN e1       -> atoms' (n + 1) e1
+instance AtomicProp a => AtomicProp (NormLTL a) where
+      atTrue = TermN atTrue
+      atNot = \ case
+            TermN a        -> TermN $ atNot a
+            AndN e1 e2     -> OrN (atNot e1) (atNot e2)
+            OrN e1 e2      -> AndN (atNot e1) (atNot e2)
+            UntilN e1 e2   -> ReleaseN (atNot e1) (atNot e2)
+            ReleaseN e1 e2 -> UntilN (atNot e1) (atNot e2)
+            NextN e        -> NextN $ atNot e
 
-depth :: NormLTL a -> Int
-depth ltl = maximum (map snd (atoms ltl)) + 1
+      atEval = \ case
+            TermN e    -> atEval e
+            AndN e1 e2 -> case (atEval e1, atEval e2) of
+                  (Just False, _) -> Just False
+                  (_, Just False) -> Just False
+                  (Just True, a)  -> a
+                  (a, Just True)  -> a
+                  _               -> Nothing
+            OrN e1 e2  -> case (atEval e1, atEval e2) of
+                  (Just True, _)  -> Just True
+                  (_, Just True)  -> Just True
+                  (Just False, a) -> a
+                  (a, Just False) -> a
+                  _               -> Nothing
+            UntilN e1 e2 -> case (atEval e1, atEval e2) of
+                  (Just True, _)  -> Just True
+                  (_, Just True)  -> Just True
+                  (Just False, a) -> a
+                  (a, Just False) -> a
+                  _               -> Nothing
+            ReleaseN e1 e2 -> case (atEval e1, atEval e2) of
+                  (Just False, _) -> Just False
+                  (_, Just False) -> Just False
+                  (Just True, a)  -> a
+                  (a, Just True)  -> a
+                  _               -> Nothing
+            NextN a               -> atEval a
+
+atoms :: (AtomicProp a, Ord a) => NormLTL a -> Set a
+atoms = \ case
+      TermN a | atEval a == Nothing -> S.singleton a
+      TermN _                       -> mempty
+      AndN e1 e2                    -> atoms e1 `S.union` atoms e2
+      OrN e1 e2                     -> atoms e1 `S.union` atoms e2
+      UntilN e1 e2                  -> atoms e1 `S.union` atoms e2
+      ReleaseN e1 e2                -> atoms e1 `S.union` atoms e2
+      NextN e1                      -> atoms e1
 
 -- | Rewrite an LTL prop into "negation normal form":
 --   - elminate Implies, Always, Eventually
@@ -185,18 +264,22 @@ data BasicTerm = BTVar Text
                | BTTrue
                | BTFalse
                | BTNot BasicTerm
-      deriving (Eq, Show)
+      deriving (Eq, Show, Ord)
 
 instance Pretty BasicTerm where
       pretty = \ case
             BTVar x -> pretty x
-            BTTrue -> pretty ("true" :: Text)
+            BTTrue  -> pretty ("true" :: Text)
             BTFalse -> pretty ("false" :: Text)
             BTNot t -> pretty ("!" :: Text) <+> pretty t
 
 instance AtomicProp BasicTerm where
-      atTrue = BTTrue
-      atNot = BTNot
+      atTrue                    = BTTrue
+      atNot                     = BTNot
+      atEval BTTrue             = Just True
+      atEval BTFalse            = Just False
+      atEval (BTNot (BTNot a))  = atEval a
+      atEval _                  = Nothing
 
 basicTerm :: Parser BasicTerm
 basicTerm = try (BTTrue <$ symbol "true")
@@ -211,4 +294,18 @@ ident = do
       xs <- takeWhileP (Just "legal LTL basic term identifier character") isAlphaNum
       space
       pure $ singleton x <> xs
+
+satisfies :: (AtomicProp a, Ord a) => [Set a] -> NormLTL a -> Bool
+satisfies []         = \ case
+      TermN a | atEval a == Just False -> False
+      _                                -> True
+satisfies m@(w : m') = \ case
+      TermN a | atEval a == Just True  -> True
+      TermN a | atEval a == Just False -> False
+      TermN a                          -> S.member a w
+      AndN a b                         -> satisfies m a && satisfies m b
+      OrN a b                          -> satisfies m a || satisfies m b
+      p@(UntilN a b)                   -> satisfies m b || (satisfies m a && satisfies m' p)
+      p@(ReleaseN a b)                 -> satisfies m b && (satisfies m a || satisfies m' p)
+      NextN a                          -> satisfies m' a
 

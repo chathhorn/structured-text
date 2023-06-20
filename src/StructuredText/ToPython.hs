@@ -1,16 +1,26 @@
-{-# LANGUAGE TupleSections #-}
-module StructuredText.ToPython ( toPython ) where
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+module StructuredText.ToPython ( toPython, pyStringifyLTL ) where
 
--- import Data.Maybe (catMaybes)
 import Data.Text (Text, unpack)
+import Data.Set (Set)
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 import Control.Monad.State.Class (MonadState, gets, modify)
 import Control.Monad.Trans.State.Strict (evalStateT)
 import Control.Monad.Except (MonadError (..))
 import StructuredText.Syntax
-import StructuredText.LTL (NormLTL (..), atoms, depth)
+import StructuredText.LTL (atoms, AtomicProp (..), NormLTL (..))
 import qualified StructuredText.LTL as LTL
 import Text.Casing (quietSnake)
 import qualified Language.Python.Common.AST as Py
+import qualified Language.Python.Common.Pretty as Py
+import Language.Python.Common.PrettyAST ()
+
+import Prettyprinter (Pretty (..))
+
+import StructuredText.DFA (DFA (..), LDFA, toDFA)
+import StructuredText.ToABA (toABA)
 
 type Sto = [Text]
 
@@ -26,88 +36,143 @@ toPython :: STxt -> Either Err (Py.Module ())
 toPython = flip evalStateT [] . transSTxt
 
 transSTxt :: (MonadState Sto m, MonadError Err m) => STxt -> m (Py.Module ())
-transSTxt (STxt gs) = Py.Module <$> (concat <$> mapM transGlobal gs)
+transSTxt (STxt gs) = Py.Module <$> ((importDFA:) . concat <$> mapM transGlobal gs)
+
+importDFA :: Py.Statement ()
+importDFA = Py.FromImport (Py.ImportRelative 0 (Just [Py.Ident "dfa" ()]) ()) (Py.ImportEverything ()) ()
 
 transGlobal :: (MonadState Sto m, MonadError Err m) => Global -> m [Py.Statement ()]
 transGlobal = \ case
+      LTLStmt x ltl                      -> do
+            x' <- transId x
+            let ltl' = LTL.normalize ltl
+            vs <- mapM transId $ Set.toList (Set.unions (Set.map (Set.fromList . vars) (atoms ltl')))
+            ltl'' <- traverse transExpr ltl'
+            let dfa = toDFA (toABA ltl'')
+            let ds = map (\ n -> Py.Param n Nothing Nothing ()) vs
+            pure $ ltlGlob x' dfa 0 ++ [ltlFun x' ds dfa 0]
       FunctionBlock x ds body         -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
-      Function x ltls _ ds body       -> do
+      Function x _ ds body       -> do
             x' <- transId x
             ds' <- concat <$> mapM transParams ds
-            let ltls' = map LTL.normalize ltls
-            ltls'' <- mapM (uncurry transLTLTerms) (zip [0..] ltls')
-            let ltls''' = zip ltls'' [0..]
-            ((concatMap (uncurry ltlGlob) ltls''' ++ map (uncurry (ltlFun x' ds')) ltls''') ++) . pure <$> (Py.Fun x' ds' Nothing <$> (putFId x *> mapM transStmt body) <*> pure ())
+            pure <$> (Py.Fun x' ds' Nothing <$> (putFId x *> mapM transStmt body) <*> pure ())
       Program x ds body               -> pure <$> (Py.Fun <$> transId x <*> (concat <$> mapM transParams ds) <*> pure Nothing <*> mapM transStmt body <*> pure ())
       TypeDef {}                      -> throwError "transGlobal TypeDef: unimplemented"
       GlobalVars {}                   -> throwError "transGlobal GlobalVars: unimplemented"
 
-iterId :: Int -> Py.Ident ()
-iterId n = Py.Ident ("i_" ++ show n) ()
+dfaId :: Py.Ident () -> Int -> Py.Ident ()
+dfaId (Py.Ident x _)  n = Py.Ident (x ++ "_ltl_dfa_" ++ show n) ()
 
-jId :: Py.Ident ()
-jId = Py.Ident "j" ()
+ltlGlob :: Py.Ident () -> LDFA (Py.Expr ()) -> Int -> [Py.Statement ()]
+ltlGlob x dfa n = [Py.Assign [pyVar (dfaId x n)] dfaInit ()]
+      where dfaInit :: Py.Expr ()
+            dfaInit = Py.Call dfaClassVar
+                  [ Py.ArgExpr (pyB $ currDFA dfa) ()
+                  , Py.ArgExpr (Py.Dictionary (map pyDelta $ Map.toList $ deltaDFA dfa) ()) ()
+                  ] ()
 
-pif :: Py.Expr () -> [Py.Statement ()] -> Py.Statement ()
-pif c thn = pifElse c thn []
+            dfaClassVar :: Py.Expr ()
+            dfaClassVar = pyVar' "DFA"
 
-litInt :: Int -> Py.Expr ()
-litInt n = Py.Int (toInteger n) (show n) ()
+            pyPair :: Py.Expr () -> Py.Expr () -> Py.Expr ()
+            pyPair a b = Py.Paren (Py.Tuple [a, b] ()) ()
 
-lit1 :: Py.Expr ()
-lit1 = litInt 1
+            pySet :: [Py.Expr ()] -> Py.Expr ()
+            pySet es = Py.Call (pyVar' "frozenset") [Py.ArgExpr (Py.Set es ()) ()] ()
 
-lit0 :: Py.Expr ()
-lit0 = litInt 0
+            pyDelta :: ((Int, Set (Py.Expr ())), Int) -> Py.DictKeyDatumList ()
+            pyDelta ((ltl, es), b) = Py.DictMappingPair (pyPair (pyB ltl) (pySet $ map pyStringify (Set.toList es))) (pyB b)
 
-pifElse :: Py.Expr () -> [Py.Statement ()] -> [Py.Statement ()] -> Py.Statement ()
-pifElse c thn els = Py.Conditional [(c, thn)] els ()
+-- | Add parens to a python expression. Makes a half-hearted attempt to remove redundant parens in the resulting
+--   expression
+parens :: Py.Expr () -> Py.Expr ()
+parens = dedup . flip Py.Paren ()
+      where dedup  = dedupSwitched False
+            dedup' = dedupSwitched True
 
-ltlGlob :: NormLTL (Py.Ident (), Py.Expr ()) -> Int -> [Py.Statement ()]
-ltlGlob ltl n = map ltlGlob' (atomIds ltl) ++ [Py.Assign [Py.Var (iterId n) ()] lit0 ()]
-      where ltlGlob' x = Py.Assign [Py.Var x ()] (Py.List (replicate (depth ltl) (Py.None ())) ()) ()
+            dedupArg :: Py.Argument () -> Py.Argument ()
+            dedupArg = \ case
+                  Py.ArgExpr e a           -> Py.ArgExpr (dedup e) a
+                  Py.ArgVarArgsPos e a     -> Py.ArgVarArgsPos (dedup e) a
+                  Py.ArgVarArgsKeyword e a -> Py.ArgVarArgsKeyword (dedup e) a
+                  Py.ArgKeyword k e a      -> Py.ArgKeyword k (dedup e) a
 
--- TODO: big mess
-ltlFun :: Py.Ident () -> [Py.Parameter ()] -> NormLTL (Py.Ident (), Py.Expr ()) -> Int -> Py.Statement ()
-ltlFun (Py.Ident x ()) ds ltl n = Py.Fun (Py.Ident (x ++ "_ltl_" ++ show n) ()) ds Nothing
-            (  inits
-            ++ rots
-            ++ (map (uncurry upAtom) (zip atoms' $ map (snd . fst) (atoms ltl)))
-            ++ tsts
-            ++ postfix
-            ) ()
-      where inits   = [Py.Global (atoms' ++ [i']) ()] ++ [Py.Assign [vj] vi ()]
-            rots    = [pif (Py.BinaryOp (Py.Equality ()) vi depth' ()) (map rot atoms' ++ [setJ])]
-            setJ    = Py.Assign [vj] depth1' ()
-            rot a   = Py.Assign [var a] (Py.BinaryOp (Py.Plus ()) (slice a (Just lit1) Nothing) (slice a Nothing (Just lit1)) ()) ()
-            slice a hd tl = Py.SlicedExpr (var a) [Py.SliceProper hd tl Nothing ()] ()
-            upAtom a aexpr = Py.Assign [Py.Subscript (var a) vj ()] aexpr ()
-            tsts     = if length atomsSub > 0
-                       then [pifElse (foldr1 and' (map isNotNone atomsSub)) [pifElse money [casePass] [caseFail]] [caseBuf]]
-                       else [casePass]
-            money    = transLTL ltl
-            postfix  = [pif (Py.BinaryOp (Py.LessThan ()) vi depth' ()) [Py.Assign [vi] (Py.BinaryOp (Py.Plus ()) vi lit1 ()) ()]]
-            casePass = prnt "\"Looks good.\""
-            caseFail = prnt "\"Monitor failed!\""
-            caseBuf  = prnt "\"Buffering...\""
-            prnt msg = Py.StmtExpr (Py.Call (Py.Var (Py.Ident "print" ()) ()) [Py.ArgExpr (Py.Strings [msg] ()) ()] ()) ()
-            depth'   = litInt $ depth ltl
-            depth1'  = litInt $ depth ltl - 1
-            atoms'   = atomIds ltl
-            var x'   = Py.Var x' ()
-            i'       = iterId n
-            vi       = var i'
-            vj       = var jId
-            and' a b = Py.BinaryOp (Py.And ()) a b ()
-            atomsSub  = map (uncurry tosub) (zip atoms' (map snd $ atoms ltl))
-            tosub a d = Py.Subscript (var a) (litInt d) ()
-            isNotNone a = Py.Paren (Py.BinaryOp (Py.IsNot ()) a (Py.None ()) ()) ()
+            dedupSwitched :: Bool -> Py.Expr () -> Py.Expr ()
+            dedupSwitched sawParen  = \ case
+                  Py.Paren e a                          -> if sawParen then dedup e else Py.Paren (dedup' e) a
+                  Py.Call e args a                      -> Py.Call (dedup e) (map dedupArg args) a
+                  Py.Subscript e1 e2 a                  -> Py.Subscript (dedup e1) (dedup e2) a
+                  -- Py.SlicedExpr e sls a                 -> Py.SlicedExpr (dedup e) (map dedupSlice sls) a
+                  Py.CondExpr e1 e2 e3 a                -> Py.CondExpr (dedup e1) (dedup e2) (dedup e3) a
+                  Py.BinaryOp op e1 e2 a                -> Py.BinaryOp op (dedup e1) (dedup e2) a
+                  Py.UnaryOp op e a                     -> Py.UnaryOp op (dedup e) a
+                  Py.Dot e x a                          -> Py.Dot (dedup e) x a
+                  Py.Lambda ps e a                      -> Py.Lambda ps (dedup e) a
+                  Py.Tuple es a                         -> Py.Tuple (map dedup' es) a
+                  Py.Yield (Just (Py.YieldFrom e a)) a' -> Py.Yield (Just (Py.YieldFrom (dedup e) a)) a'
+                  Py.Yield (Just (Py.YieldExpr e)) a'   -> Py.Yield (Just (Py.YieldExpr (dedup e))) a'
+                  -- Py.Generator c a                   -> Py.Generator (dedupComp c) a
+                  Py.Await e a                          -> Py.Await (dedup e) a
+                  -- Py.ListComp c a                    -> Py.ListComp (dedupComp c) a
+                  Py.List es a                          -> Py.List (map dedup es) a
+                  -- Py.Dictionary ks a                 -> Py.Dictionary (map dedupDictKey ks) a
+                  -- Py.DictComp c a                    -> Py.DictComp (dedupComp c) a
+                  Py.Set es a                           -> Py.Set (map dedup es) a
+                  -- Py.SetComp c a                     -> Py.SetComp (dedupComp c) a
+                  Py.Starred e a                        -> Py.Starred (dedup e) a
+                  e                                     -> e
+
+pyStringify :: Py.Expr () -> Py.Expr ()
+pyStringify e = Py.Strings [qq $ Py.prettyText e] ()
+
+pyStringifyLTL :: NormLTL (Py.Expr ()) -> Py.Expr ()
+pyStringifyLTL e = Py.Strings [qq $ show $ pretty $ fmap parens e] ()
+
+pyB :: Int -> Py.Expr ()
+pyB n = Py.Int (toInteger n) (show n) ()
+
+-- pyB :: B (NormLTL (Py.Expr ())) -> Py.Expr ()
+-- pyB = \ case
+--       BTrue        -> Py.Call bnode [barg "TRUE"] ()
+--       BFalse       -> Py.Call bnode [barg "FALSE"] ()
+--       BTerm e      -> Py.Call bnode [barg "TERM", arg $ pyStringifyLTL e] ()
+--       BAnd e1 e2   -> Py.Call bnode [barg "AND", arg $ pyB e1, arg $ pyB e2] ()
+--       BOr e1 e2    -> Py.Call bnode [barg "OR", arg $ pyB e1, arg $ pyB e2] ()
+--       where bnode  = pyVar (Py.Ident "BNode" ())
+--             b      = pyVar (Py.Ident "B" ())
+--             arg e  = Py.ArgExpr e ()
+--             barg n = arg $ Py.Dot b (Py.Ident n ()) ()
+
+pyVar :: Py.Ident () -> Py.Expr ()
+pyVar x = Py.Var x ()
+
+pyVar' :: Text -> Py.Expr ()
+pyVar' x = pyVar (Py.Ident (unpack x) ())
+
+ltlFun :: Py.Ident () -> [Py.Parameter ()] -> LDFA (Py.Expr ()) -> Int -> Py.Statement ()
+ltlFun x ds dfa n = Py.Fun funId ds Nothing
+               [ Py.Global [dfaId x n] ()
+               , Py.Assign [d] (Py.Dictionary (map keyVal atoms') ()) ()
+               , Py.Return (Just $ Py.Call (Py.Dot (pyVar $ dfaId x n) (Py.Ident "accept_dict" ()) ()) [Py.ArgExpr d ()] ()) ()
+               ]
+               ()
+      where d :: Py.Expr ()
+            d = pyVar (Py.Ident "d" ())
+
+            funId :: Py.Ident ()
+            funId = Py.Ident (Py.prettyText x ++ "_ltl_" ++ show n) ()
+
+            atoms' :: [Py.Expr ()]
+            atoms' = Set.toList $ Set.unions (alphaDFA dfa)
+
+            keyVal :: Py.Expr () -> Py.DictKeyDatumList ()
+            keyVal e = Py.DictMappingPair (pyStringify e) e
 
 transId :: Monad m => Text -> m (Py.Ident ())
 transId x = pure $ Py.Ident (quietSnake $ unpack x) ()
 
 transVar :: Monad m => Text -> m (Py.Expr ())
-transVar x = Py.Var <$> transId x <*> pure ()
+transVar = pure . pyVar'
 
 transOneVar :: Monad m => Text -> m [Py.Expr ()]
 transOneVar x = pure <$> transVar x
@@ -137,36 +202,14 @@ transParams = \ case
 
 transParam :: MonadError Err m => TypedName -> m (Py.Parameter ())
 transParam = \ case
-      TypedName x _ _ e -> Py.Param <$> transId x <*> pure Nothing <*> (mapM transInit e) <*> pure ()
+      TypedName x _ _ e -> Py.Param <$> transId x <*> pure Nothing <*> mapM transInit e <*> pure ()
       TypedLocation {}  -> throwError "transParam TypedLocation: unimplemented"
 
 pyRange :: Py.Expr () -> Py.Expr () -> Py.Expr ()
-pyRange from to = Py.Call (Py.Var (Py.Ident "range" ()) ()) [Py.ArgExpr from (), Py.ArgExpr to ()] ()
+pyRange from to = Py.Call (pyVar' "range") [Py.ArgExpr from (), Py.ArgExpr to ()] ()
 
-atomIds :: NormLTL (Py.Ident (), a) -> [Py.Ident ()]
-atomIds ltl = map (fst . fst) $ atoms ltl
-
--- TODO: should make LTL functor instance.
-transLTLTerms :: MonadError Err m => Int -> NormLTL Expr -> m (NormLTL (Py.Ident (), Py.Expr ()))
-transLTLTerms n = trans' "_"
-      where trans' i = \ case
-                  LTL.TermN  a       -> LTL.TermN . (Py.Ident ("atom" ++ show n ++ i) (),) <$> transExpr a
-                  LTL.AndN   e1 e2   -> LTL.AndN <$> trans' (i ++ "a") e1 <*> trans' (i ++ "b") e2
-                  LTL.OrN    e1 e2   -> LTL.OrN <$> trans' (i ++ "a") e1 <*> trans' (i ++ "b") e2
-                  LTL.UntilN e1 e2   -> LTL.UntilN <$> trans' (i ++ "a") e1 <*> trans' (i ++ "b") e2
-                  LTL.ReleaseN e1 e2 -> LTL.ReleaseN <$> trans' (i ++ "a") e1 <*> trans' (i ++ "b") e2
-                  LTL.NextN  e       -> LTL.NextN <$> trans' (i ++ "x") e
-
-transLTL :: NormLTL (Py.Ident (), a) -> Py.Expr ()
-transLTL = trans' 0
-      where trans' d = \ case
-                  LTL.TermN  (x, _)   -> Py.Subscript (Py.Var x ()) (litInt d) ()
-                  LTL.AndN   e1 e2    -> Py.BinaryOp (Py.And ()) (trans' d e1) (trans' d e2) ()
-                  LTL.OrN    e1 e2    -> Py.BinaryOp (Py.Or ()) (trans' d e1) (trans' d e2) ()
-                  LTL.UntilN e1 _     -> trans' d e1 -- TODO
-                  LTL.ReleaseN _ e2   -> trans' d e2 -- TODO
-                  LTL.NextN  e        -> trans' (d + 1) e
-
+qq :: String -> String
+qq s = "\"" ++ s ++ "\""
 
 transStmt :: (MonadState Sto m, MonadError Err m) => Stmt -> m (Py.Statement ())
 transStmt = \ case
@@ -175,9 +218,9 @@ transStmt = \ case
             if r then Py.Return <$> (pure <$> transExpr rhs) <*> pure ()
                  else Py.Assign <$> (pure <$> transLVal lhs) <*> transExpr rhs <*> pure ()
       Invoke {}                -> throwError "transStmt Invoke: unimplemented"
-      Return                   -> Py.Return <$> pure Nothing <*> pure ()
+      Return                   -> pure $ Py.Return Nothing ()
       If e thn [] els          -> Py.Conditional <$> ((\ a b -> [(a,b)]) <$> transExpr e <*> mapM transStmt thn) <*> mapM transStmt els <*> pure ()
-      If _ _ _ _               -> throwError "transStmt: If"
+      If {}                    -> throwError "transStmt: If"
       Case {}                  -> throwError "transStmt Case: unimplemented"
                                  -- TODO: I think "to" in the range needs to be incremented.
       For x from to _step body -> Py.For <$> transOneVar x <*> (pyRange <$> transExpr from <*> transExpr to) <*> mapM transStmt body <*> pure [] <*> pure ()
@@ -186,9 +229,8 @@ transStmt = \ case
             c' <- transExpr c
             body' <- mapM transStmt body
             pure $ Py.While (Py.Bool True ()) (body' ++ [Py.Conditional [(c', [Py.Break ()])] [] ()]) [] ()
-      LTL ltl                  -> pure $ Py.StmtExpr (Py.Strings ["# " , show ltl] ()) ()
-      Exit                     -> Py.Return <$> pure Nothing <*> pure () -- TODO: how would it be different from return?
-      Empty                    -> Py.Pass <$> pure ()
+      Exit                     -> pure $ Py.Return Nothing () -- TODO: how would it be different from return?
+      Empty                    -> pure $ Py.Pass ()
 
 transInit :: MonadError Err m => Init -> m (Py.Expr ())
 transInit = \ case
@@ -243,3 +285,32 @@ transLit = \ case
       Duration {} -> throwError "transLit Duration: unimplemented"
       String s    -> pure $ Py.ByteStrings [unpack s] ()
       WString s   -> pure $ Py.Strings [unpack s] ()
+
+-- | Orphan instance.
+instance Pretty (Py.Expr ()) where
+      pretty = pretty . Py.prettyText
+
+-- | Orphan instance.
+instance AtomicProp (Py.Expr ()) where
+      atTrue  = Py.Bool True ()
+      atNot a = Py.UnaryOp (Py.Not ()) a ()
+      atEval (Py.Bool True ())  = Just True
+      atEval (Py.Bool False ()) = Just False
+      atEval (Py.Paren a ())    = atEval a
+      atEval (Py.UnaryOp (Py.Not ()) a ()) = not <$> atEval a
+      atEval (Py.BinaryOp (Py.And ()) a b ()) = case (atEval a, atEval b) of
+            (Just True, a')         -> a'
+            (Just False, _)         -> Just False
+            (_, Just False)         -> Just False
+            _                       -> Nothing
+      atEval (Py.BinaryOp (Py.Or ()) a b ()) = case (atEval a, atEval b) of
+            (Just False, a')        -> a'
+            (Just True, _)          -> Just True
+            (_, Just True)          -> Just True
+            _                       -> Nothing
+      atEval (Py.BinaryOp (Py.Xor ()) a b ()) = case (atEval a, atEval b) of
+            (Just True, Just False) -> Just True
+            (Just False, Just True) -> Just True
+            (Just _, Just _)        -> Just False
+            _                       -> Nothing
+      atEval _ = Nothing

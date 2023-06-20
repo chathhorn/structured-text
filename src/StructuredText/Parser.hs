@@ -31,29 +31,32 @@ global = try functionBlock
       <|> try program
       <|> try typeDef
       <|> try globalVars
+      <|> try ltlStmt
 
-ltl :: Parser (LTL.LTL Expr)
-ltl = (symbol' "//" *> symbol' "LTL" *> symbol' ":" *> LTL.parseLtl expr)
+ltlPrefix :: Parser Text
+ltlPrefix = symbol' "LTL" *> ident <* symbol' ":"
+
+ltlStmt :: Parser Global
+ltlStmt = LTLStmt <$> (symbol' "//" *> ltlPrefix) <*> LTL.parseLtl expr
 
 functionBlock :: Parser Global
 functionBlock = do
       skipSymbol' "FUNCTION_BLOCK"
-      n <- ident
-      vs <- many functionBlockVarDecl
+      n   <- ident
+      vs  <- many functionBlockVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION_BLOCK"
       pure $ FunctionBlock n vs sts
 
 function :: Parser Global
 function = do
-      annot <- many ltl
       skipSymbol' "FUNCTION"
       n <- ident
       t <- declType
       vs <- many functionVarDecl
       sts <- many stmt
       skipSymbol' "END_FUNCTION"
-      pure $ Function n annot t vs sts
+      pure $ Function n t vs sts
 
 program :: Parser Global
 program = do
@@ -123,31 +126,28 @@ typedNames = try noLocNames
       <|> try (pure <$> singleLocName)
       <|> try (pure <$> typedLocation)
 
+typedInit :: Parser (Type, Maybe Init)
+typedInit = (,) <$> declType <*> (maybeInit <* semi)
+
 noLocNames :: Parser [TypedName]
 noLocNames = do
-      xs <- commas ident
-      t <- declType
-      i <- maybeInit
-      semi
+      xs     <- commas ident
+      (t, i) <- typedInit
       pure $ map (\ x -> TypedName x Nothing t i) xs
 
 singleLocName :: Parser TypedName
 singleLocName = do
-      x <- ident
+      x      <- ident
       symbol' "AT" $> ()
-      loc <- location
-      t <- declType
-      i <- maybeInit
-      semi
+      loc    <- location
+      (t, i) <- typedInit
       pure $ TypedName x (Just loc) t i
 
 typedLocation :: Parser TypedName
 typedLocation = do
       symbol' "AT" $> ()
-      loc <- location
-      t <- declType
-      i <- maybeInit
-      semi
+      loc    <- location
+      (t, i) <- typedInit
       pure $ TypedLocation loc t i
 
 maybeInit :: Parser (Maybe Init)
@@ -316,7 +316,7 @@ opTable =
         ]
       , [ binop "<="  $ BinOp Lte
         , binop ">="  $ BinOp Gte
-        , binop' "<"   $ BinOp Lt
+        , binop' "<"  $ BinOp Lt
         , binop ">"   $ BinOp Gt
         ]
       , [ binop "="   $ BinOp Eq
@@ -358,7 +358,7 @@ typ = try ( (symbol' "BOOL"  *> symbol' "R_EDGE") $> TBoolREdge )
   <|> try ( notIdent' "TIME"   $> TTime  ) <|> try ( notIdent' "DATE"  $> TDate  )
   <|> try ( notIdent' "STRING" $> TTime  ) <|> try ( notIdent' "WSTRING"  $> TDate  )
   <|> try ( ( notIdent' "TIME_OF_DAY"      <|>   notIdent' "TOD")  $> TTimeOfDay )
-  <|> try ( ( notIdent' "DATE_AND_TYPE"    <|>   notIdent' "DT" )  $> TDateTime  )
+  <|> try ( ( notIdent' "DATE_AND_TIME"    <|>   notIdent' "DT" )  $> TDateTime  )
   <|> ( TId <$> ident )
 
 -----------
@@ -367,7 +367,7 @@ typ = try ( (symbol' "BOOL"  *> symbol' "R_EDGE") $> TBoolREdge )
 
 -- TODO(chathhorn): move LTL out of comments.
 skipLineComment :: Parser ()
-skipLineComment =  try (symbol "//" *> notFollowedBy (symbol' "LTL" *> symbol ":")) *> void (takeWhileP (Just "character") (/= '\n'))
+skipLineComment =  try (symbol "//" *> notFollowedBy ltlPrefix) *> void (takeWhileP (Just "character") (/= '\n'))
 
 skipBlockComment :: Parser ()
 skipBlockComment = try (L.skipBlockComment "(*" "*)") <|> try (L.skipBlockComment "/*" "*/")
@@ -419,16 +419,16 @@ integer :: Parser Int
 integer = try hexadecimal <|> try binary <|> try octal <|> try decimal
 
 binary :: Parser Int
-binary = two *> hash *> (L.signed space $ L.lexeme space L.binary)
+binary = two *> hash *> L.signed space (L.lexeme space L.binary)
 
 octal :: Parser Int
-octal = eight *> hash *> (L.signed space $ L.lexeme space L.octal)
+octal = eight *> hash *> L.signed space (L.lexeme space L.octal)
 
 decimal :: Parser Int
 decimal = L.signed space $ L.lexeme space L.decimal
 
 hexadecimal :: Parser Int
-hexadecimal = sixteen *> hash *> (L.signed space $ L.lexeme space L.hexadecimal)
+hexadecimal = sixteen *> hash *> L.signed space (L.lexeme space L.hexadecimal)
 
 float :: Parser Double
 float = L.signed space $ L.lexeme space L.float
@@ -459,11 +459,9 @@ ident = do
       pure $ singleton x <> xs
 
 location :: Parser Location
-location =
-      (   try (InputLoc  <$> (symbol "%I" *> locAddr <* space))
-      <|> try (OutputLoc <$> (symbol "%Q" *> locAddr <* space))
-      <|> try (MemoryLoc <$> (symbol "%M" *> locAddr <* space))
-      )
+location = try (InputLoc  <$> (symbol "%I" *> locAddr <* space))
+       <|> try (OutputLoc <$> (symbol "%Q" *> locAddr <* space))
+       <|> try (MemoryLoc <$> (symbol "%M" *> locAddr <* space))
 
 locAddr :: Parser Text
 locAddr = takeWhileP (Just "legal physical or logical variable location address character") isLocAddrChar

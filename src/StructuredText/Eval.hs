@@ -16,7 +16,7 @@ type FEnv = Map Text Global
 type Err = Text
 
 putFunDef :: MonadState FEnv m => Global -> m ()
-putFunDef f@(Function x _ _ _ _) = modify (insert x f)
+putFunDef f@(Function x _ _ _) = modify (insert x f)
 putFunDef _                      = undefined
 
 eval :: STxt -> Maybe FEnv
@@ -29,6 +29,7 @@ evalGlobal = \ case
       Program {}       -> undefined
       TypeDef {}       -> undefined
       GlobalVars {}    -> undefined
+      LTLStmt {}       -> undefined
 
 data Result = RId Text
             | RQualId Text Text
