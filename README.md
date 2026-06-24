@@ -10,7 +10,7 @@ Tools for the IEC 61131-3 structured text (ST) language. See: https://en.wikiped
 
   2. Clone this repo:
      ```shell
-     $ git clone git@code.ornl.gov:defcon-scada/structured-text.git
+     $ git clone https://github.com/chathhorn/structured-text.git
      ```
 
   3. Enter the repo:
